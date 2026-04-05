@@ -1,0 +1,83 @@
+{
+  "version": "0.1.0",
+  "name": "qal",
+  "address": "QaL1on5mBdZFvgFjSJGnmVZWe2FsBM3VN47L6PemxGWy",
+  "metadata": { "name": "qal", "version": "0.1.0", "spec": "0.1.0" },
+  "instructions": [
+    {
+      "name": "begin_reconstruction",
+      "discriminator": [11, 22, 33, 44, 55, 66, 77, 88],
+      "accounts": [
+        { "name": "recon_record", "writable": true, "pda": { "seeds": [
+          { "kind": "const", "value": [114,101,99,111,110] },
+          { "kind": "arg", "path": "entity_id" }
+        ]}},
+        { "name": "authority", "writable": true, "signer": true },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [
+        { "name": "entity_id", "type": "string" },
+        { "name": "domain", "type": "string" },
+        { "name": "temporal_depth_years", "type": "u32" }
+      ]
+    },
+    {
+      "name": "complete_reconstruction",
+      "discriminator": [88, 77, 66, 55, 44, 33, 22, 11],
+      "accounts": [
+        { "name": "recon_record", "writable": true, "pda": { "seeds": [
+          { "kind": "const", "value": [114,101,99,111,110] },
+          { "kind": "account", "path": "recon_record.entity_id" }
+        ]}},
+        { "name": "authority", "signer": true }
+      ],
+      "args": [
+        { "name": "confidence", "type": "f64" },
+        { "name": "risk_level", "type": "string" },
+        { "name": "result_hash", "type": { "array": ["u8", 32] } }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "QalReconRecord",
+      "discriminator": [113,97,108,114,101,99,111,110],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "pubkey" },
+          { "name": "entity_id", "type": "string" },
+          { "name": "domain", "type": "string" },
+          { "name": "confidence", "type": "f64" },
+          { "name": "temporal_depth_years", "type": "u32" },
+          { "name": "risk_level", "type": "string" },
+          { "name": "result_hash", "type": { "array": ["u8", 32] } },
+          { "name": "timestamp", "type": "i64" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "ReconstructionComplete",
+      "discriminator": [55,44,33,22,11,88,77,66],
+      "fields": [
+        { "name": "entity_id", "type": "string", "index": false },
+        { "name": "domain", "type": "string", "index": false },
+        { "name": "confidence", "type": "f64", "index": false },
+        { "name": "temporal_depth_years", "type": "u32", "index": false },
+        { "name": "risk_level", "type": "string", "index": false },
+        { "name": "result_hash", "type": { "array": ["u8", 32] }, "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    }
+  ],
+  "errors": [
+    { "code": 6000, "name": "EmptyEntityId", "msg": "Entity ID must not be empty" },
+    { "code": 6001, "name": "EmptyDomain", "msg": "Domain must not be empty" },
+    { "code": 6002, "name": "InvalidConfidence", "msg": "Confidence must be between 0.0 and 1.0" },
+    { "code": 6003, "name": "InvalidRiskLevel", "msg": "Invalid risk level: must be LOW, MEDIUM, or HIGH" },
+    { "code": 6004, "name": "Unauthorized", "msg": "Unauthorized: signer is not the record authority" }
+  ]
+}

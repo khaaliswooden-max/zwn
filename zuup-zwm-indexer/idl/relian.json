@@ -1,0 +1,79 @@
+{
+  "version": "0.1.0",
+  "name": "relian",
+  "address": "RELia15mBdZFvgFjSJGnmVZWe2FsBM3VN47L6PemxGWy",
+  "metadata": { "name": "relian", "version": "0.1.0", "spec": "0.1.0" },
+  "instructions": [
+    {
+      "name": "begin_migration",
+      "discriminator": [12,23,34,45,56,67,78,89],
+      "accounts": [
+        { "name": "migration_record", "writable": true, "pda": { "seeds": [
+          { "kind": "const", "value": [109,105,103,114,97,116,105,111,110] },
+          { "kind": "arg", "path": "project_id" }
+        ]}},
+        { "name": "authority", "writable": true, "signer": true },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [{ "name": "project_id", "type": "string" }]
+    },
+    {
+      "name": "complete_migration",
+      "discriminator": [89,78,67,56,45,34,23,12],
+      "accounts": [
+        { "name": "migration_record", "writable": true, "pda": { "seeds": [
+          { "kind": "const", "value": [109,105,103,114,97,116,105,111,110] },
+          { "kind": "account", "path": "migration_record.project_id" }
+        ]}},
+        { "name": "authority", "signer": true }
+      ],
+      "args": [
+        { "name": "semantic_preservation", "type": "f64" },
+        { "name": "test_coverage", "type": "f64" },
+        { "name": "loc_migrated", "type": "u64" },
+        { "name": "artifact_hash", "type": { "array": ["u8", 32] } }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "MigrationRecord",
+      "discriminator": [114,101,108,105,97,110,0,0],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "pubkey" },
+          { "name": "project_id", "type": "string" },
+          { "name": "semantic_preservation", "type": "f64" },
+          { "name": "test_coverage", "type": "f64" },
+          { "name": "loc_migrated", "type": "u64" },
+          { "name": "artifact_hash", "type": { "array": ["u8", 32] } },
+          { "name": "status", "type": "string" },
+          { "name": "timestamp", "type": "i64" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "MigrationComplete",
+      "discriminator": [33,44,55,66,77,88,99,110],
+      "fields": [
+        { "name": "project_id", "type": "string", "index": false },
+        { "name": "semantic_preservation", "type": "f64", "index": false },
+        { "name": "test_coverage", "type": "f64", "index": false },
+        { "name": "loc_migrated", "type": "u64", "index": false },
+        { "name": "artifact_hash", "type": { "array": ["u8", 32] }, "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    }
+  ],
+  "errors": [
+    { "code": 6000, "name": "EmptyProjectId", "msg": "Project ID must not be empty" },
+    { "code": 6001, "name": "InvalidPreservation", "msg": "Preservation score must be between 0.0 and 1.0" },
+    { "code": 6002, "name": "InvalidCoverage", "msg": "Test coverage must be between 0.0 and 1.0" },
+    { "code": 6003, "name": "Unauthorized", "msg": "Unauthorized: signer is not the record authority" },
+    { "code": 6004, "name": "NotInProgress", "msg": "Migration is not in progress" }
+  ]
+}

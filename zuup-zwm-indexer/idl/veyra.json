@@ -1,0 +1,80 @@
+{
+  "version": "0.1.0",
+  "name": "veyra",
+  "address": "VeYra55mBdZFvgFjSJGnmVZWe2FsBM3VN47L6PemxGWy",
+  "metadata": { "name": "veyra", "version": "0.1.0", "spec": "0.1.0" },
+  "instructions": [
+    {
+      "name": "submit_reasoning",
+      "discriminator": [16,32,48,64,80,96,112,128],
+      "accounts": [
+        { "name": "reasoning_record", "writable": true, "pda": { "seeds": [
+          { "kind": "const", "value": [114,101,97,115,111,110,105,110,103] },
+          { "kind": "arg", "path": "request_id" }
+        ]}},
+        { "name": "authority", "writable": true, "signer": true },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [
+        { "name": "request_id", "type": "string" },
+        { "name": "context", "type": "string" }
+      ]
+    },
+    {
+      "name": "complete_reasoning",
+      "discriminator": [128,112,96,80,64,48,32,16],
+      "accounts": [
+        { "name": "reasoning_record", "writable": true, "pda": { "seeds": [
+          { "kind": "const", "value": [114,101,97,115,111,110,105,110,103] },
+          { "kind": "account", "path": "reasoning_record.request_id" }
+        ]}},
+        { "name": "authority", "signer": true }
+      ],
+      "args": [
+        { "name": "v_score", "type": "u8" },
+        { "name": "latency_ms", "type": "u32" },
+        { "name": "output_hash", "type": { "array": ["u8", 32] } }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "ReasoningRecord",
+      "discriminator": [118,101,121,114,97,0,0,0],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "pubkey" },
+          { "name": "request_id", "type": "string" },
+          { "name": "context", "type": "string" },
+          { "name": "v_score", "type": "u8" },
+          { "name": "latency_ms", "type": "u32" },
+          { "name": "output_hash", "type": { "array": ["u8", 32] } },
+          { "name": "status", "type": "string" },
+          { "name": "timestamp", "type": "i64" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "ReasoningComplete",
+      "discriminator": [64,80,96,112,128,144,160,176],
+      "fields": [
+        { "name": "request_id", "type": "string", "index": false },
+        { "name": "context", "type": "string", "index": false },
+        { "name": "v_score", "type": "u8", "index": false },
+        { "name": "latency_ms", "type": "u32", "index": false },
+        { "name": "output_hash", "type": { "array": ["u8", 32] }, "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    }
+  ],
+  "errors": [
+    { "code": 6000, "name": "EmptyRequestId", "msg": "Request ID must not be empty" },
+    { "code": 6001, "name": "InvalidVScore", "msg": "V-Score must be between 0 and 100" },
+    { "code": 6002, "name": "Unauthorized", "msg": "Unauthorized: signer is not the record authority" },
+    { "code": 6003, "name": "NotPending", "msg": "Reasoning request is not pending" }
+  ]
+}

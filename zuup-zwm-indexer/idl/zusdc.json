@@ -1,0 +1,96 @@
+{
+  "version": "0.1.0",
+  "name": "zusdc",
+  "address": "ZuSDCa5mBdZFvgFjSJGnmVZWe2FsBM3VN47L6PemxGWy",
+  "metadata": { "name": "zusdc", "version": "0.1.0", "spec": "0.1.0" },
+  "instructions": [
+    {
+      "name": "mint",
+      "discriminator": [51,57,225,47,182,146,137,166],
+      "accounts": [
+        { "name": "settlement_record", "writable": true, "pda": { "seeds": [
+          { "kind": "const", "value": [115,101,116,116,108,101,109,101,110,116] },
+          { "kind": "arg", "path": "transaction_id" }
+        ]}},
+        { "name": "authority", "writable": true, "signer": true },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [
+        { "name": "transaction_id", "type": "string" },
+        { "name": "counterparty_id", "type": "string" },
+        { "name": "amount_usdc", "type": "u64" },
+        { "name": "mint_sig", "type": { "array": ["u8", 64] } }
+      ]
+    },
+    {
+      "name": "flag",
+      "discriminator": [22,33,44,55,66,77,88,99],
+      "accounts": [
+        { "name": "settlement_record", "writable": true },
+        { "name": "authority", "signer": true }
+      ],
+      "args": []
+    },
+    {
+      "name": "release",
+      "discriminator": [99,88,77,66,55,44,33,22],
+      "accounts": [
+        { "name": "settlement_record", "writable": true },
+        { "name": "authority", "signer": true }
+      ],
+      "args": []
+    },
+    {
+      "name": "burn",
+      "discriminator": [116,110,8,233,178,58,6,208],
+      "accounts": [
+        { "name": "settlement_record", "writable": true },
+        { "name": "authority", "signer": true }
+      ],
+      "args": [{ "name": "burn_sig", "type": { "array": ["u8", 64] } }]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "SettlementRecord",
+      "discriminator": [122,117,115,100,99,0,0,0],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "pubkey" },
+          { "name": "transaction_id", "type": "string" },
+          { "name": "counterparty_id", "type": "string" },
+          { "name": "amount_usdc", "type": "u64" },
+          { "name": "event_type", "type": "string" },
+          { "name": "status", "type": "string" },
+          { "name": "mint_sig", "type": { "array": ["u8", 64] } },
+          { "name": "burn_sig", "type": { "array": ["u8", 64] } },
+          { "name": "timestamp", "type": "i64" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "SettlementEvent",
+      "discriminator": [183,62,134,149,5,181,80,206],
+      "fields": [
+        { "name": "transaction_id", "type": "string", "index": false },
+        { "name": "counterparty_id", "type": "string", "index": false },
+        { "name": "amount_usdc", "type": "u64", "index": false },
+        { "name": "event_type", "type": "string", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    }
+  ],
+  "errors": [
+    { "code": 6000, "name": "EmptyTransactionId", "msg": "Transaction ID must not be empty" },
+    { "code": 6001, "name": "EmptyCounterpartyId", "msg": "Counterparty ID must not be empty" },
+    { "code": 6002, "name": "ZeroAmount", "msg": "Amount must be greater than zero" },
+    { "code": 6003, "name": "InvalidEventType", "msg": "Invalid event type: must be MINT, BURN, FLAG, or RELEASE" },
+    { "code": 6004, "name": "Unauthorized", "msg": "Unauthorized: signer is not the settlement authority" },
+    { "code": 6005, "name": "Flagged", "msg": "Settlement is flagged and cannot be released without governance" },
+    { "code": 6006, "name": "AlreadySettled", "msg": "Settlement is already burned or released" }
+  ]
+}

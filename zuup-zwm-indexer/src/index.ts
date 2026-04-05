@@ -5,6 +5,12 @@ import { initDb } from './db/init';
 import { startGraphQL } from './api/graphql-server';
 import { startCiviumListener } from './listeners/civium-listener';
 import { startAureonListener } from './listeners/aureon-listener';
+import { startQalListener } from './listeners/qal-listener';
+import { startSymbionListener } from './listeners/symbion-listener';
+import { startRelianListener } from './listeners/relian-listener';
+import { startPodxListener } from './listeners/podx-listener';
+import { startVeyraListener } from './listeners/veyra-listener';
+import { startZusdcListener } from './listeners/zusdc-listener';
 
 async function main(): Promise<void> {
   // Neo4j driver
@@ -25,11 +31,17 @@ async function main(): Promise<void> {
     { wsEndpoint: process.env['SOLANA_RPC_WS']! }
   );
 
-  // 4. Start platform listeners
+  // 4. Start all platform listeners
   startCiviumListener(connection, driver);
   startAureonListener(connection, driver);
+  startQalListener(connection, driver);
+  startSymbionListener(connection, driver);
+  startRelianListener(connection, driver);
+  startPodxListener(connection, driver);
+  startVeyraListener(connection, driver);
+  startZusdcListener(connection, driver);
 
-  console.log('[index] ZWM indexer running.');
+  console.log('[index] ZWM indexer running — all 8 platform listeners active.');
 }
 
 main().catch((err) => {
