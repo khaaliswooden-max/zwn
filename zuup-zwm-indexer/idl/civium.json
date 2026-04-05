@@ -1,0 +1,131 @@
+{
+  "version": "0.1.0",
+  "name": "civium",
+  "address": "H1eSx6ij1Q296Tzss62AHuamn1rD4a9MkDapYu1CyvVM",
+  "metadata": {
+    "name": "civium",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Civium compliance evaluation program"
+  },
+  "instructions": [
+    {
+      "name": "evaluate_compliance",
+      "discriminator": [220, 105, 42, 76, 127, 200, 169, 251],
+      "accounts": [
+        {
+          "name": "compliance_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": [99, 111, 109, 112, 108, 105, 97, 110, 99, 101] },
+              { "kind": "arg", "path": "entity_id" }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        { "name": "entity_id", "type": "string" },
+        { "name": "status", "type": "string" },
+        { "name": "score", "type": "u8" },
+        { "name": "domain", "type": "string" },
+        { "name": "evidence_hash", "type": { "array": ["u8", 32] } }
+      ]
+    },
+    {
+      "name": "update_compliance",
+      "discriminator": [152, 178, 242, 112, 219, 162, 93, 30],
+      "accounts": [
+        {
+          "name": "compliance_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": [99, 111, 109, 112, 108, 105, 97, 110, 99, 101] },
+              { "kind": "account", "path": "compliance_record.entity_id" }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        { "name": "status", "type": "string" },
+        { "name": "score", "type": "u8" },
+        { "name": "domain", "type": "string" },
+        { "name": "evidence_hash", "type": { "array": ["u8", 32] } }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "ComplianceRecord",
+      "discriminator": [99, 111, 109, 112, 108, 105, 97, 110, 99, 101, 0, 0, 0, 0, 0, 0],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "pubkey" },
+          { "name": "entity_id", "type": "string" },
+          { "name": "status", "type": "string" },
+          { "name": "score", "type": "u8" },
+          { "name": "domain", "type": "string" },
+          { "name": "evidence_hash", "type": { "array": ["u8", 32] } },
+          { "name": "timestamp", "type": "i64" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "ComplianceStateChange",
+      "discriminator": [88, 77, 221, 133, 60, 7, 216, 202],
+      "fields": [
+        { "name": "entity_id", "type": "string", "index": false },
+        { "name": "status", "type": "string", "index": false },
+        { "name": "score", "type": "u8", "index": false },
+        { "name": "domain", "type": "string", "index": false },
+        { "name": "evidence_hash", "type": { "array": ["u8", 32] }, "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "InvalidStatus",
+      "msg": "Invalid status: must be COMPLIANT, VIOLATION, or FLAGGED"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidDomain",
+      "msg": "Invalid domain: must be halal, esg, or itar"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidScore",
+      "msg": "Score must be between 0 and 100"
+    },
+    {
+      "code": 6003,
+      "name": "EmptyEntityId",
+      "msg": "Entity ID must not be empty"
+    },
+    {
+      "code": 6004,
+      "name": "Unauthorized",
+      "msg": "Unauthorized: signer is not the record authority"
+    }
+  ]
+}
