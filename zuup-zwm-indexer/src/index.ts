@@ -11,6 +11,7 @@ import { startRelianListener } from './listeners/relian-listener';
 import { startPodxListener } from './listeners/podx-listener';
 import { startVeyraListener } from './listeners/veyra-listener';
 import { startZusdcListener } from './listeners/zusdc-listener';
+import { startZuupHqListener } from './listeners/zuuphq-listener';
 
 async function main(): Promise<void> {
   // Neo4j driver
@@ -40,8 +41,9 @@ async function main(): Promise<void> {
   startPodxListener(connection, driver);
   startVeyraListener(connection, driver);
   startZusdcListener(connection, driver);
+  startZuupHqListener(connection, driver);
 
-  console.log('[index] ZWM indexer running — all 8 platform listeners active.');
+  console.log('[index] ZWM indexer running — all 9 platform listeners active.');
 }
 
 main().catch((err) => {

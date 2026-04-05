@@ -1,0 +1,65 @@
+{
+  "version": "0.1.0",
+  "name": "zuuphq",
+  "address": "ZuupHQ5mBdZFvgFjSJGnmVZWe2FsBM3VN47L6PemxGWy",
+  "metadata": { "name": "zuuphq", "version": "0.1.0", "spec": "0.1.0" },
+  "instructions": [
+    {
+      "name": "write_attestation",
+      "discriminator": [18, 36, 54, 72, 90, 108, 126, 144],
+      "accounts": [
+        { "name": "attestation_record", "writable": true, "pda": { "seeds": [
+          { "kind": "const", "value": [97,116,116,101,115,116,97,116,105,111,110] },
+          { "kind": "arg", "path": "attestation_id" }
+        ]}},
+        { "name": "authority", "writable": true, "signer": true },
+        { "name": "system_program", "address": "11111111111111111111111111111111" }
+      ],
+      "args": [
+        { "name": "attestation_id", "type": "string" },
+        { "name": "sha256", "type": { "array": ["u8", 32] } },
+        { "name": "attestation_type", "type": "string" },
+        { "name": "score", "type": "u8" }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "AttestationRecord",
+      "discriminator": [122,117,117,112,104,113,0,0],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "pubkey" },
+          { "name": "attestation_id", "type": "string" },
+          { "name": "sha256", "type": { "array": ["u8", 32] } },
+          { "name": "pda_address", "type": "pubkey" },
+          { "name": "attestation_type", "type": "string" },
+          { "name": "score", "type": "u8" },
+          { "name": "solana_slot", "type": "u64" },
+          { "name": "timestamp", "type": "i64" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "AttestationWritten",
+      "discriminator": [144,126,108,90,72,54,36,18],
+      "fields": [
+        { "name": "attestation_id", "type": "string", "index": false },
+        { "name": "sha256", "type": { "array": ["u8", 32] }, "index": false },
+        { "name": "attestation_type", "type": "string", "index": false },
+        { "name": "score", "type": "u8", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    }
+  ],
+  "errors": [
+    { "code": 6000, "name": "EmptyAttestationId", "msg": "Attestation ID must not be empty" },
+    { "code": 6001, "name": "InvalidAttestationType", "msg": "Invalid attestation type: must be MIGRATION, COMPLIANCE, or COMPUTE" },
+    { "code": 6002, "name": "InvalidScore", "msg": "Score must be between 0 and 100" },
+    { "code": 6003, "name": "Unauthorized", "msg": "Unauthorized: signer is not the attestation authority" }
+  ]
+}
