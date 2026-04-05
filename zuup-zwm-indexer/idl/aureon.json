@@ -1,0 +1,117 @@
+{
+  "version": "0.1.0",
+  "name": "aureon",
+  "address": "AurEoN5mBdZFvgFjSJGnmVZWe2FsBM3VN47L6PemxGWy",
+  "metadata": {
+    "name": "aureon",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Aureon procurement intelligence program"
+  },
+  "instructions": [
+    {
+      "name": "evaluate_fit",
+      "discriminator": [178, 42, 59, 207, 81, 13, 244, 116],
+      "accounts": [
+        {
+          "name": "procurement_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": [112, 114, 111, 99, 117, 114, 101, 109, 101, 110, 116] },
+              { "kind": "arg", "path": "entity_id" }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        { "name": "entity_id", "type": "string" },
+        { "name": "fitiq_score", "type": "u8" },
+        { "name": "upd_score", "type": "u8" },
+        { "name": "opportunity_count", "type": "u32" }
+      ]
+    },
+    {
+      "name": "update_fit",
+      "discriminator": [67, 213, 4, 9, 199, 54, 162, 81],
+      "accounts": [
+        {
+          "name": "procurement_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              { "kind": "const", "value": [112, 114, 111, 99, 117, 114, 101, 109, 101, 110, 116] },
+              { "kind": "account", "path": "procurement_record.entity_id" }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "signer": true
+        }
+      ],
+      "args": [
+        { "name": "fitiq_score", "type": "u8" },
+        { "name": "upd_score", "type": "u8" },
+        { "name": "opportunity_count", "type": "u32" }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "ProcurementRecord",
+      "discriminator": [112, 114, 111, 99, 117, 114, 101, 109, 0, 0, 0, 0, 0, 0, 0, 0],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "pubkey" },
+          { "name": "entity_id", "type": "string" },
+          { "name": "fitiq_score", "type": "u8" },
+          { "name": "upd_score", "type": "u8" },
+          { "name": "opportunity_count", "type": "u32" },
+          { "name": "timestamp", "type": "i64" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    }
+  ],
+  "events": [
+    {
+      "name": "ProcurementStateChange",
+      "discriminator": [201, 88, 114, 9, 47, 237, 155, 30],
+      "fields": [
+        { "name": "entity_id", "type": "string", "index": false },
+        { "name": "fitiq_score", "type": "u8", "index": false },
+        { "name": "upd_score", "type": "u8", "index": false },
+        { "name": "opportunity_count", "type": "u32", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "EmptyEntityId",
+      "msg": "Entity ID must not be empty"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidScore",
+      "msg": "Score must be between 0 and 100"
+    },
+    {
+      "code": 6002,
+      "name": "Unauthorized",
+      "msg": "Unauthorized: signer is not the record authority"
+    }
+  ]
+}

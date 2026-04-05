@@ -4,6 +4,7 @@ import { Connection } from '@solana/web3.js';
 import { initDb } from './db/init';
 import { startGraphQL } from './api/graphql-server';
 import { startCiviumListener } from './listeners/civium-listener';
+import { startAureonListener } from './listeners/aureon-listener';
 
 async function main(): Promise<void> {
   // Neo4j driver
@@ -26,6 +27,7 @@ async function main(): Promise<void> {
 
   // 4. Start platform listeners
   startCiviumListener(connection, driver);
+  startAureonListener(connection, driver);
 
   console.log('[index] ZWM indexer running.');
 }
