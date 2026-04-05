@@ -1,0 +1,19 @@
+# Platform repos cloned locally for development — tracked separately
+civium/
+aureon/
+qal/
+symbion/
+relian/
+podx/
+veyra/
+zusdc/
+zuup-hq/
+
+# Node
+node_modules/
+zuup-zwm-indexer/node_modules/
+zuup-zwm-indexer/dist/
+
+# Env
+.env
+zuup-zwm-indexer/.env
