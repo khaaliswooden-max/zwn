@@ -20,7 +20,7 @@
 import 'dotenv/config';
 import neo4j from 'neo4j-driver';
 import { Connection, PublicKey, Keypair } from '@solana/web3.js';
-import { AnchorProvider, Program, Idl, Wallet } from '@coral-xyz/anchor';
+import { AnchorProvider, Program, Idl, Wallet, setProvider } from '@coral-xyz/anchor';
 import * as fs from 'fs';
 import * as path from 'path';
 import { writeComplianceState } from '../src/writers/compliance-writer';
@@ -48,6 +48,7 @@ async function main() {
   const payer = Keypair.fromSecretKey(secretKey);
   const wallet = new Wallet(payer);
   const provider = new AnchorProvider(connection, wallet, { commitment: 'confirmed' });
+  setProvider(provider);
 
   const idlPath = path.resolve(__dirname, '../idl/civium.json');
   if (!fs.existsSync(idlPath)) {
@@ -55,17 +56,17 @@ async function main() {
   }
   const idl = JSON.parse(fs.readFileSync(idlPath, 'utf8')) as Idl;
   const programId = new PublicKey(process.env['CIVIUM_PROGRAM_ID']!);
-  const program = new Program(idl, programId, provider);
+  // Anchor 0.30: Program(idl, provider) — program ID is read from idl.address
+  const program = new Program(idl, provider);
 
   console.log('Step 1: Calling Civium instruction on devnet...');
-  // NOTE: Replace 'evaluateCompliance' with the actual instruction name from civium IDL
   const testEntityId = `test-entity-${Date.now()}`;
-  const txSig = await (program.methods as Record<string, (...args: unknown[]) => unknown>)['evaluateCompliance'](
-    testEntityId,
-    'VIOLATION',
-    42,
-    'esg'
-  ).rpc();
+  const evidenceHash = Array.from({ length: 32 }, () => Math.floor(Math.random() * 256));
+  const txSig = await (program.methods as unknown as {
+    evaluateCompliance: (
+      entityId: string, status: string, score: number, domain: string, evidenceHash: number[]
+    ) => { rpc: () => Promise<string> };
+  }).evaluateCompliance(testEntityId, 'VIOLATION', 42, 'esg', evidenceHash).rpc();
   console.log(`Step 1 PASS: tx=${txSig}`);
 
   console.log('Step 2: Waiting for transaction logs...');
