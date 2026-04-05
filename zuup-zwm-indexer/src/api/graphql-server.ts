@@ -97,11 +97,24 @@ const typeDefs = `#graphql
     riskLevel: String
   }
 
+  # Full current state across all substrates — one node per substrate at most
+  # (the current node, i.e. the one with no outgoing SUPERSEDES edge)
+  type FullWorldState {
+    actor: WorldActor
+    compliance: ComplianceState
+    procurement: ProcurementState
+    biological: BiologicalState
+    historical: HistoricalRecon
+    migration: MigrationState
+    compute: ComputeState
+  }
+
   type Query {
     worldState(entityId: String!): WorldActor
     entitiesByCompliance(status: String!, domain: String): [WorldActor]
     causalChain(substrateEventId: String!): [CausalLink]
     compositeRisk(entityId: String!): CompositeRisk
+    fullWorldState(entityId: String!): FullWorldState
   }
 `;
 
@@ -197,6 +210,44 @@ function buildResolvers(driver: Driver) {
 
           risk['riskLevel'] = riskScore >= 5 ? 'CRITICAL' : riskScore >= 3 ? 'HIGH' : riskScore >= 1 ? 'MEDIUM' : 'LOW';
           return risk;
+        } finally {
+          await session.close();
+        }
+      },
+
+      async fullWorldState(_: unknown, { entityId }: { entityId: string }) {
+        const session = driver.session();
+        try {
+          // Fetch the actor node
+          const actorResult = await session.run(
+            `MATCH (a:WorldActor {id: $entityId}) RETURN a`,
+            { entityId }
+          );
+          if (actorResult.records.length === 0) return null;
+          const actor = actorResult.records[0].get('a').properties as Record<string, unknown>;
+
+          // Fetch all current state nodes (no outgoing SUPERSEDES edge = current)
+          const stateResult = await session.run(
+            `MATCH (a:WorldActor {id: $entityId})-[:HAS_STATE]->(state)
+             WHERE NOT (state)-[:SUPERSEDES]->()
+             RETURN labels(state)[0] AS substrate, state`,
+            { entityId }
+          );
+
+          const result: Record<string, unknown> = { actor };
+          for (const record of stateResult.records) {
+            const substrate = record.get('substrate') as string;
+            const props = record.get('state').properties as Record<string, unknown>;
+            switch (substrate) {
+              case 'ComplianceState':  result['compliance']  = props; break;
+              case 'ProcurementState': result['procurement'] = props; break;
+              case 'BiologicalState':  result['biological']  = props; break;
+              case 'HistoricalRecon':  result['historical']  = props; break;
+              case 'MigrationState':   result['migration']   = props; break;
+              case 'ComputeState':     result['compute']     = props; break;
+            }
+          }
+          return result;
         } finally {
           await session.close();
         }

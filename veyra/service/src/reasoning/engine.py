@@ -9,7 +9,7 @@ import anthropic
 from src.zwm.context_client import (
     fetch_causal_chain,
     fetch_composite_risk,
-    fetch_world_state,
+    fetch_full_world_state,
 )
 from src.zwm.context_formatter import format_world_state_context
 
@@ -59,19 +59,19 @@ class ReasoningEngine:
         )
 
         # Fetch ZWM context in parallel (best-effort — failures are soft)
-        world_state = None
+        full_world_state = None
         composite_risk = None
         causal_chain: list[dict[str, Any]] = []
 
         if entity_id:
-            world_state, composite_risk, causal_chain = await _fetch_all(
+            full_world_state, composite_risk, causal_chain = await _fetch_all(
                 entity_id, trigger_event_id
             )
 
         # Build context block and inject into prompt
         context_block = format_world_state_context(
             entity_id=entity_id or "unknown",
-            world_state=world_state,
+            full_world_state=full_world_state,
             composite_risk=composite_risk,
             trigger_context=context_type,
             causal_chain=causal_chain,
@@ -113,13 +113,13 @@ async def _fetch_all(
     """Fetch world state, composite risk, and causal chain concurrently."""
     import asyncio
 
-    world_state, composite_risk, causal_chain = await asyncio.gather(
-        fetch_world_state(entity_id),
+    full_world_state, composite_risk, causal_chain = await asyncio.gather(
+        fetch_full_world_state(entity_id),
         fetch_composite_risk(entity_id),
         fetch_causal_chain(trigger_event_id),
         return_exceptions=False,
     )
-    return world_state, composite_risk, causal_chain
+    return full_world_state, composite_risk, causal_chain
 
 
 def _build_prompt(

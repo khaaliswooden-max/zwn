@@ -1,6 +1,6 @@
 """ZWM GraphQL client — fetches world state from zuup-zwm-indexer."""
-import os
 import logging
+import os
 from typing import Any, Optional
 
 import httpx
@@ -9,12 +9,68 @@ logger = logging.getLogger(__name__)
 
 ZWM_GRAPHQL_URL = os.getenv("ZWM_GRAPHQL_URL", "http://zwm-indexer:4000/graphql")
 
-_WORLD_STATE_QUERY = """
-query WorldState($entityId: String!) {
-  worldState(entityId: $entityId) {
-    id
-    created_at
-    last_seen
+# Full substrate state — returns actor + all current state nodes in one query
+_FULL_WORLD_STATE_QUERY = """
+query FullWorldState($entityId: String!) {
+  fullWorldState(entityId: $entityId) {
+    actor {
+      id
+      created_at
+      last_seen
+    }
+    compliance {
+      id
+      entity_id
+      status
+      score
+      domain
+      timestamp
+      solana_slot
+      tx_signature
+    }
+    procurement {
+      id
+      entity_id
+      fitiq
+      upd
+      timestamp
+      solana_slot
+    }
+    biological {
+      id
+      entity_id
+      serotonin
+      dopamine
+      cortisol
+      gaba
+      anomaly_flag
+      timestamp
+    }
+    historical {
+      id
+      entity_id
+      domain
+      confidence
+      temporal_depth_years
+      timestamp
+    }
+    migration {
+      id
+      project_id
+      semantic_preservation
+      test_coverage
+      timestamp
+    }
+    compute {
+      id
+      entity_id
+      xdop_score
+      wcbi
+      ddil_hours
+      tops
+      availability
+      timestamp
+    }
   }
 }
 """
@@ -63,16 +119,18 @@ async def _gql(query: str, variables: dict[str, Any]) -> dict[str, Any]:
         return payload.get("data", {})
 
 
-async def fetch_world_state(entity_id: str) -> Optional[dict[str, Any]]:
+async def fetch_full_world_state(entity_id: str) -> Optional[dict[str, Any]]:
+    """Returns actor + all current substrate state nodes in one round trip."""
     try:
-        data = await _gql(_WORLD_STATE_QUERY, {"entityId": entity_id})
-        return data.get("worldState")
+        data = await _gql(_FULL_WORLD_STATE_QUERY, {"entityId": entity_id})
+        return data.get("fullWorldState")
     except Exception as exc:
-        logger.warning("fetch_world_state(%s) failed: %s", entity_id, exc)
+        logger.warning("fetch_full_world_state(%s) failed: %s", entity_id, exc)
         return None
 
 
 async def fetch_composite_risk(entity_id: str) -> Optional[dict[str, Any]]:
+    """Aggregate risk scores — used as a fallback summary when full state is unavailable."""
     try:
         data = await _gql(_COMPOSITE_RISK_QUERY, {"entityId": entity_id})
         return data.get("compositeRisk")

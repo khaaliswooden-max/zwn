@@ -5,7 +5,7 @@ from typing import Any, Optional
 
 def format_world_state_context(
     entity_id: str,
-    world_state: Optional[dict[str, Any]],
+    full_world_state: Optional[dict[str, Any]],
     composite_risk: Optional[dict[str, Any]],
     trigger_context: str,
     causal_chain: Optional[list[dict[str, Any]]] = None,
@@ -18,46 +18,160 @@ def format_world_state_context(
         "",
     ]
 
-    if world_state:
-        lines += [
-            "--- Actor ---",
-            f"  ID:         {world_state.get('id', 'unknown')}",
-            f"  First seen: {_fmt_ts(world_state.get('created_at'))}",
-            f"  Last seen:  {_fmt_ts(world_state.get('last_seen'))}",
-            "",
-        ]
+    if full_world_state:
+        _fmt_actor(lines, full_world_state.get("actor"))
+        _fmt_compliance(lines, full_world_state.get("compliance"))
+        _fmt_procurement(lines, full_world_state.get("procurement"))
+        _fmt_biological(lines, full_world_state.get("biological"))
+        _fmt_historical(lines, full_world_state.get("historical"))
+        _fmt_migration(lines, full_world_state.get("migration"))
+        _fmt_compute(lines, full_world_state.get("compute"))
+    elif composite_risk:
+        # Fallback: only aggregated risk is available
+        _fmt_composite_risk_fallback(lines, composite_risk)
     else:
-        lines += ["--- Actor ---", "  (no actor record found in ZWM)", ""]
-
-    if composite_risk:
-        lines += [
-            "--- Composite Risk ---",
-            f"  Risk level:         {composite_risk.get('riskLevel', 'UNKNOWN')}",
-            f"  Compliance status:  {composite_risk.get('complianceStatus') or 'N/A'}",
-            f"  Compliance score:   {composite_risk.get('complianceScore') or 'N/A'}",
-            f"  FitIQ score:        {composite_risk.get('fitiq') or 'N/A'}",
-            f"  Compute avail:      {_fmt_pct(composite_risk.get('availability'))}",
-            f"  Biological anomaly: {composite_risk.get('anomalyFlag', False)}",
-            "",
-        ]
-    else:
-        lines += ["--- Composite Risk ---", "  (no risk data available)", ""]
+        lines += ["(no world state data available in ZWM)", ""]
 
     if causal_chain:
         lines.append("--- Causal Chain (most recent 5) ---")
         for link in causal_chain[:5]:
             evt = link.get("event") or {}
-            source = evt.get("source", "?")
-            etype = evt.get("type", "?")
-            effect = link.get("effect", "?")
             lag = link.get("lag_ms")
             lag_str = f"{lag:.0f} ms" if lag is not None else "?"
-            lines.append(f"  [{source}] {etype} → {effect} (lag {lag_str})")
+            lines.append(
+                f"  [{evt.get('source', '?')}] {evt.get('type', '?')} "
+                f"→ {link.get('effect', '?')} (lag {lag_str})"
+            )
         lines.append("")
 
     lines.append("=== END WORLD STATE CONTEXT ===")
     return "\n".join(lines)
 
+
+# ---------------------------------------------------------------------------
+# Per-substrate formatters
+# ---------------------------------------------------------------------------
+
+def _fmt_actor(lines: list[str], actor: Optional[dict[str, Any]]) -> None:
+    lines.append("--- Actor ---")
+    if actor:
+        lines += [
+            f"  ID:         {actor.get('id', 'unknown')}",
+            f"  First seen: {_fmt_ts(actor.get('created_at'))}",
+            f"  Last seen:  {_fmt_ts(actor.get('last_seen'))}",
+        ]
+    else:
+        lines.append("  (no actor record found in ZWM)")
+    lines.append("")
+
+
+def _fmt_compliance(lines: list[str], cs: Optional[dict[str, Any]]) -> None:
+    lines.append("--- Compliance (Civium) ---")
+    if cs:
+        lines += [
+            f"  Status:         {cs.get('status', 'N/A')}",
+            f"  Score:          {cs.get('score', 'N/A')}",
+            f"  Domain:         {cs.get('domain', 'N/A')}",
+            f"  As of:          {_fmt_ts(cs.get('timestamp'))}",
+            f"  Solana slot:    {cs.get('solana_slot', 'N/A')}",
+        ]
+    else:
+        lines.append("  (no compliance state on record)")
+    lines.append("")
+
+
+def _fmt_procurement(lines: list[str], ps: Optional[dict[str, Any]]) -> None:
+    lines.append("--- Procurement (Aureon) ---")
+    if ps:
+        lines += [
+            f"  FitIQ score:    {ps.get('fitiq', 'N/A')}",
+            f"  UPD score:      {ps.get('upd', 'N/A')}",
+            f"  As of:          {_fmt_ts(ps.get('timestamp'))}",
+        ]
+    else:
+        lines.append("  (no procurement state on record)")
+    lines.append("")
+
+
+def _fmt_biological(lines: list[str], bs: Optional[dict[str, Any]]) -> None:
+    lines.append("--- Biological (Symbion) ---")
+    if bs:
+        anomaly = bs.get("anomaly_flag", False)
+        lines += [
+            f"  Anomaly flag:   {anomaly}",
+            f"  Serotonin:      {_fmt_nm(bs.get('serotonin'))}",
+            f"  Dopamine:       {_fmt_nm(bs.get('dopamine'))}",
+            f"  Cortisol:       {_fmt_nm(bs.get('cortisol'))}",
+            f"  GABA:           {_fmt_nm(bs.get('gaba'))}",
+            f"  As of:          {_fmt_ts(bs.get('timestamp'))}",
+        ]
+    else:
+        lines.append("  (no biological state on record)")
+    lines.append("")
+
+
+def _fmt_historical(lines: list[str], hr: Optional[dict[str, Any]]) -> None:
+    lines.append("--- Historical Recon (QAL) ---")
+    if hr:
+        lines += [
+            f"  Domain:         {hr.get('domain', 'N/A')}",
+            f"  Confidence:     {_fmt_float(hr.get('confidence'))}",
+            f"  Temporal depth: {hr.get('temporal_depth_years', 'N/A')} years",
+            f"  As of:          {_fmt_ts(hr.get('timestamp'))}",
+        ]
+    else:
+        lines.append("  (no historical recon on record)")
+    lines.append("")
+
+
+def _fmt_migration(lines: list[str], ms: Optional[dict[str, Any]]) -> None:
+    lines.append("--- Migration (Relian) ---")
+    if ms:
+        lines += [
+            f"  Semantic pres.: {_fmt_pct(ms.get('semantic_preservation'))}",
+            f"  Test coverage:  {_fmt_pct(ms.get('test_coverage'))}",
+            f"  As of:          {_fmt_ts(ms.get('timestamp'))}",
+        ]
+    else:
+        lines.append("  (no migration state on record)")
+    lines.append("")
+
+
+def _fmt_compute(lines: list[str], cs: Optional[dict[str, Any]]) -> None:
+    lines.append("--- Compute (PodX) ---")
+    if cs:
+        lines += [
+            f"  Availability:   {_fmt_pct(cs.get('availability'))}",
+            f"  XdoP score:     {cs.get('xdop_score', 'N/A')}",
+            f"  WCBI score:     {cs.get('wcbi', 'N/A')}",
+            f"  DDIL hours:     {cs.get('ddil_hours', 'N/A')}",
+            f"  TOPS:           {cs.get('tops', 'N/A')}",
+            f"  As of:          {_fmt_ts(cs.get('timestamp'))}",
+        ]
+    else:
+        lines.append("  (no compute state on record)")
+    lines.append("")
+
+
+def _fmt_composite_risk_fallback(
+    lines: list[str], risk: dict[str, Any]
+) -> None:
+    """Used when fullWorldState is unavailable — aggregated risk only."""
+    lines += [
+        "--- Risk Summary (aggregated) ---",
+        f"  Risk level:         {risk.get('riskLevel', 'UNKNOWN')}",
+        f"  Compliance status:  {risk.get('complianceStatus') or 'N/A'}",
+        f"  Compliance score:   {risk.get('complianceScore') or 'N/A'}",
+        f"  FitIQ score:        {risk.get('fitiq') or 'N/A'}",
+        f"  Compute avail:      {_fmt_pct(risk.get('availability'))}",
+        f"  Biological anomaly: {risk.get('anomalyFlag', False)}",
+        "",
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Formatting helpers
+# ---------------------------------------------------------------------------
 
 def _fmt_ts(ts: Any) -> str:
     if ts is None:
@@ -73,5 +187,24 @@ def _fmt_pct(val: Any) -> str:
         return "N/A"
     try:
         return f"{float(val) * 100:.2f}%"
+    except Exception:
+        return str(val)
+
+
+def _fmt_nm(val: Any) -> str:
+    """Format nanomolar biomarker value."""
+    if val is None:
+        return "N/A"
+    try:
+        return f"{float(val):.3f} nM"
+    except Exception:
+        return str(val)
+
+
+def _fmt_float(val: Any) -> str:
+    if val is None:
+        return "N/A"
+    try:
+        return f"{float(val):.4f}"
     except Exception:
         return str(val)
