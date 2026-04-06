@@ -24,6 +24,7 @@ a GraphQL API that Veyra queries for world state before reasoning.
 
 ```
 ~/your-workspace/          ← run `claude` from HERE, not from inside any repo
+  zblackhole.io/           ← zuup.org — ALL frontend work goes here
   zuup-zwm-indexer/        ← primary build target
   civium/                  ← Anchor (Rust) + FastAPI (Python)
   aureon/                  ← Anchor (Rust) + FastAPI (Python)
@@ -404,9 +405,81 @@ Create tests/civium-e2e.ts following the green-path validation steps in
 CLAUDE.md. Run it against devnet and show me the Neo4j query output.
 ```
 
+### Frontend Sessions (target: khaaliswooden-max/zblackhole.io)
+
+```
+Session UI-1 — World Canvas (mock data):
+Working in khaaliswooden-max/zblackhole.io.
+Install react-force-graph-2d.
+Create app/world/page.tsx. Render a force-directed graph
+with mock ZWM state: 3 WorldActor nodes (teal #1D9E75),
+6 state nodes (purple #7F77DD = compliance/procurement,
+amber #EF9F27 = historical/biological), 4 SubstrateEvent
+nodes (gray #888780). Edges: HAS_STATE (white 0.25 opacity),
+CAUSED_BY (coral #D85A30 1.5px).
+Canvas background #0a0a0a. Labels IBM Plex Mono 10px #888880.
+Click a node → side panel shows id, substrate type, timestamp.
+Full viewport width, 60vh height.
+
+Session UI-2 — Homepage Integration:
+Working in khaaliswooden-max/zblackhole.io.
+Import the WorldCanvas component from app/world/page.tsx
+into the homepage (app/page.tsx).
+Replace the existing platform grid section with the canvas.
+Below the canvas, add exactly three lines of copy:
+  Line 1: 'The institutional world model.' (IBM Plex Sans bold 28px #f0ece4)
+  Line 2: 'Nine substrates. One causal graph. Live on Solana.' (IBM Plex Mono 22px #888880)
+  Line 3: 'Access the ZWM →' (IBM Plex Mono 22px #1A1A2E bold, links to /build)
+Keep the chain bar (slot, TPS, program ID, pulsing dot) exactly
+as-is — do not modify it.
+
+Session UI-3 — Nav + /substrates + /build:
+Working in khaaliswooden-max/zblackhole.io.
+1. Update nav links: WORLD / SUBSTRATES / RESEARCH / BUILD
+   (remove PLATFORMS, BENCHMARKS, SEED).
+2. Create app/substrates/page.tsx. Nine substrate cards in existing
+   grid layout. Each card: superpower name (large, primary), platform
+   name (small, muted Courier New), benchmark signal (one number/claim),
+   capability claim (one sentence), status badge (ACTIVE/DEVNET), PDF link.
+   Use the nine superpower definitions from the UI/UX brief.
+3. Create app/build/page.tsx. Three-column layout:
+   API Access / Platform Partnership / Institutional Access.
+   Each column: track name, audience description, what they get, CTA button.
+   Single contact form below with track selector.
+
+Session UI-4 — Wire Live GraphQL (post-indexer):
+Working in khaaliswooden-max/zblackhole.io.
+Install @apollo/client.
+Replace mock data in WorldCanvas with a live useQuery hook
+against http://zwm-indexer:4000/graphql.
+Query: worldState for all entities, current states only
+(WHERE NOT (state)-[:SUPERSEDES]->()).
+Add WebSocket subscription for real-time SubstrateEvent
+arrivals — pulse the relevant node on each new event.
+Add error boundary: if GraphQL is unavailable, fall back
+to seeded mock data silently (no error shown to visitor).
+```
+
 ---
 
 ## Context Log
+
+### 2026-04-06
+**Session topic:** UI/UX direction + zblackhole.io site redesign
+**Decisions made:**
+- Frontend repo confirmed: `zblackhole.io` (khaaliswooden-max/zblackhole.io) — not zuup-web
+- Site redesign: world model canvas replaces platform grid on homepage
+- Nav updated: WORLD / SUBSTRATES / RESEARCH / BUILD
+- Design tokens locked (see Section 09 of UI/UX brief)
+- UI-1 through UI-3 can run immediately (mock data, no indexer dependency)
+- UI-4 wires live GraphQL after zuup-zwm-indexer is deployed
+
+**Files modified:**
+- CLAUDE.md — added zblackhole.io to Repo Map, added UI session prompts
+
+**Next action:** Initialize zblackhole.io Next.js repo, run UI-1 → UI-3.
+
+---
 
 ### 2026-04-05
 **Session topic:** ZWM architecture design + CLAUDE.md creation
