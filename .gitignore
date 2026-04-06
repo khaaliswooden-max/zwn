@@ -1,5 +1,6 @@
 # Platform repos cloned locally for development — tracked separately
 # (wildcard pattern lets negations work for new service dirs within)
+zblackhole.io/
 civium/
 aureon/
 qal/
