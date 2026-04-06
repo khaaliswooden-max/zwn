@@ -1,11 +1,13 @@
 # Platform repos cloned locally for development — tracked separately
+# (wildcard pattern lets negations work for new service dirs within)
 civium/
 aureon/
 qal/
 symbion/
 relian/
 podx/
-veyra/
+veyra/*
+!veyra/service/
 zusdc/
 zuup-hq/
 
