@@ -36,10 +36,10 @@ export function parseAureonEvents(
     if (event.name === 'ProcurementStateChange') {
       const d = event.data as Record<string, unknown>;
       results.push({
-        entityId: d['entityId'] as string,
-        fitiqScore: d['fitiqScore'] as number,
-        updScore: d['updScore'] as number,
-        opportunityCount: d['opportunityCount'] as number,
+        entityId: d['entity_id'] as string,
+        fitiqScore: d['fitiq_score'] as number,
+        updScore: d['upd_score'] as number,
+        opportunityCount: d['opportunity_count'] as number,
         timestamp: Number(d['timestamp']),
       });
     }

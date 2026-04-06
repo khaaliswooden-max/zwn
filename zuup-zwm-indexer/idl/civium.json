@@ -101,6 +101,38 @@
       ]
     }
   ],
+  "types": [
+    {
+      "name": "ComplianceRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "pubkey" },
+          { "name": "entity_id", "type": "string" },
+          { "name": "status", "type": "string" },
+          { "name": "score", "type": "u8" },
+          { "name": "domain", "type": "string" },
+          { "name": "evidence_hash", "type": { "array": ["u8", 32] } },
+          { "name": "timestamp", "type": "i64" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "ComplianceStateChange",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "entity_id", "type": "string" },
+          { "name": "status", "type": "string" },
+          { "name": "score", "type": "u8" },
+          { "name": "domain", "type": "string" },
+          { "name": "evidence_hash", "type": { "array": ["u8", 32] } },
+          { "name": "timestamp", "type": "i64" }
+        ]
+      }
+    }
+  ],
   "errors": [
     {
       "code": 6000,

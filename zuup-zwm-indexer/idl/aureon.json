@@ -97,6 +97,36 @@
       ]
     }
   ],
+  "types": [
+    {
+      "name": "ProcurementRecord",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "authority", "type": "pubkey" },
+          { "name": "entity_id", "type": "string" },
+          { "name": "fitiq_score", "type": "u8" },
+          { "name": "upd_score", "type": "u8" },
+          { "name": "opportunity_count", "type": "u32" },
+          { "name": "timestamp", "type": "i64" },
+          { "name": "bump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "ProcurementStateChange",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "entity_id", "type": "string" },
+          { "name": "fitiq_score", "type": "u8" },
+          { "name": "upd_score", "type": "u8" },
+          { "name": "opportunity_count", "type": "u32" },
+          { "name": "timestamp", "type": "i64" }
+        ]
+      }
+    }
+  ],
   "errors": [
     {
       "code": 6000,
