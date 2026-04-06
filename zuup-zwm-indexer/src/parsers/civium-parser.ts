@@ -37,11 +37,11 @@ export function parseCiviumEvents(
     if (event.name === 'ComplianceStateChange') {
       const d = event.data as Record<string, unknown>;
       results.push({
-        entityId: d['entityId'] as string,
+        entityId: d['entity_id'] as string,
         status: d['status'] as string,
         score: d['score'] as number,
         domain: d['domain'] as string,
-        evidenceHash: Array.from(d['evidenceHash'] as number[]),
+        evidenceHash: Array.from(d['evidence_hash'] as number[]),
         timestamp: Number(d['timestamp']),
       });
     }
