@@ -1,0 +1,7 @@
+{
+  "private": true,
+  "name": "zwn",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build"
+  }
+}
