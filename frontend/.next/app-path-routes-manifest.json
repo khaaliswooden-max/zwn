@@ -1,0 +1,9 @@
+{
+  "/_global-error/page": "/_global-error",
+  "/_not-found/page": "/_not-found",
+  "/console/page": "/console",
+  "/entities/[id]/page": "/entities/[id]",
+  "/graph/page": "/graph",
+  "/ingest/page": "/ingest",
+  "/page": "/"
+}
