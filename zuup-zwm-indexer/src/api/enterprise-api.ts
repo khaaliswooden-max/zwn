@@ -194,6 +194,412 @@ async function handleCausalChain(
   }
 }
 
+// ─── Build page HTML ─────────────────────────────────────────────────────────
+
+const BUILD_PAGE_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ZWM Build — Zuup World Model</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg:      #0a0a0a;
+    --surface: #111111;
+    --border:  #222222;
+    --text:    #f0ece4;
+    --muted:   #888880;
+    --teal:    #1D9E75;
+    --purple:  #7F77DD;
+    --amber:   #EF9F27;
+    --coral:   #D85A30;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+  body { background: var(--bg); color: var(--text); font-family: var(--mono); min-height: 100vh; }
+
+  /* ── Header ── */
+  header { border-bottom: 1px solid var(--border); padding: 24px 48px; display: flex; align-items: center; justify-content: space-between; }
+  .logo { font-family: var(--sans); font-weight: 700; font-size: 15px; letter-spacing: 0.08em; color: var(--teal); }
+  .header-meta { font-size: 11px; color: var(--muted); }
+
+  /* ── Hero ── */
+  .hero { padding: 72px 48px 48px; max-width: 720px; }
+  .hero h1 { font-family: var(--sans); font-size: 36px; font-weight: 700; line-height: 1.15; margin-bottom: 16px; }
+  .hero p { font-size: 14px; color: var(--muted); line-height: 1.7; }
+
+  /* ── Tracks ── */
+  .tracks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--border); margin: 0 0 0 0; }
+  .track { background: var(--bg); padding: 40px 40px 48px; display: flex; flex-direction: column; }
+  .track-badge { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 20px; }
+  .track-badge.api      { color: var(--teal); }
+  .track-badge.partner  { color: var(--purple); }
+  .track-badge.inst     { color: var(--amber); }
+  .track h2 { font-family: var(--sans); font-size: 22px; font-weight: 700; margin-bottom: 12px; }
+  .track .audience { font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: 24px; }
+  .track ul { list-style: none; flex: 1; margin-bottom: 32px; }
+  .track ul li { font-size: 12px; color: var(--muted); padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .track ul li::before { content: '→ '; color: var(--teal); }
+  .btn { display: inline-block; font-family: var(--mono); font-size: 12px; font-weight: 600; padding: 10px 20px; border: 1px solid; cursor: pointer; text-align: center; transition: opacity 0.15s; background: transparent; }
+  .btn:hover { opacity: 0.75; }
+  .btn-teal   { color: var(--teal);   border-color: var(--teal); }
+  .btn-purple { color: var(--purple); border-color: var(--purple); }
+  .btn-amber  { color: var(--amber);  border-color: var(--amber); }
+
+  /* ── API Key Generator ── */
+  .key-section { border-top: 1px solid var(--border); padding: 48px; }
+  .key-section h2 { font-family: var(--sans); font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .key-section p  { font-size: 12px; color: var(--muted); margin-bottom: 24px; }
+  .key-form { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 16px; }
+  select { background: var(--surface); color: var(--text); border: 1px solid var(--border); font-family: var(--mono); font-size: 12px; padding: 9px 14px; }
+  .key-output { font-size: 13px; padding: 14px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: 2px; display: none; }
+  .key-output .key-value { color: var(--teal); word-break: break-all; }
+  .key-output .key-meta  { font-size: 11px; color: var(--muted); margin-top: 8px; }
+  .copy-btn { font-size: 10px; color: var(--muted); background: none; border: none; cursor: pointer; font-family: var(--mono); margin-left: 8px; }
+  .copy-btn:hover { color: var(--text); }
+
+  /* ── SDK Quickstart ── */
+  .quickstart { border-top: 1px solid var(--border); padding: 48px; }
+  .quickstart h2 { font-family: var(--sans); font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .quickstart .sub { font-size: 12px; color: var(--muted); margin-bottom: 32px; }
+  .steps { display: flex; flex-direction: column; gap: 32px; }
+  .step-label { font-size: 10px; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
+  pre { background: var(--surface); border: 1px solid var(--border); padding: 20px 24px; overflow-x: auto; font-family: var(--mono); font-size: 12px; line-height: 1.7; position: relative; }
+  .copy-pre { position: absolute; top: 10px; right: 12px; font-size: 10px; color: var(--muted); background: none; border: none; cursor: pointer; font-family: var(--mono); }
+  .copy-pre:hover { color: var(--text); }
+  .kw  { color: var(--purple); }
+  .str { color: var(--teal); }
+  .cmt { color: var(--muted); }
+  .fn  { color: var(--amber); }
+
+  /* ── API Reference ── */
+  .api-ref { border-top: 1px solid var(--border); padding: 48px; }
+  .api-ref h2 { font-family: var(--sans); font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+  .api-ref .sub { font-size: 12px; color: var(--muted); margin-bottom: 32px; }
+  .endpoint { border: 1px solid var(--border); margin-bottom: 12px; }
+  .endpoint-header { display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: var(--surface); cursor: pointer; user-select: none; }
+  .method { font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 2px; }
+  .method.get  { background: #1a3a2a; color: var(--teal); }
+  .method.post { background: #2a2030; color: var(--purple); }
+  .endpoint-path { font-size: 13px; flex: 1; }
+  .endpoint-desc { font-size: 11px; color: var(--muted); }
+  .endpoint-body { padding: 20px 18px; display: none; border-top: 1px solid var(--border); }
+  .endpoint-body.open { display: block; }
+  .param-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+  .param-table th { text-align: left; color: var(--muted); font-weight: 400; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  .param-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .param-table td:first-child { color: var(--teal); font-weight: 600; white-space: nowrap; }
+  .param-table td:last-child  { color: var(--muted); }
+  .required { color: var(--coral); font-size: 9px; margin-left: 4px; }
+
+  /* ── Footer ── */
+  footer { border-top: 1px solid var(--border); padding: 24px 48px; display: flex; justify-content: space-between; align-items: center; }
+  footer span { font-size: 11px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">ZUUP / BUILD</span>
+  <span class="header-meta">Enterprise REST API &nbsp;:&nbsp; port 3001 &nbsp;|&nbsp; GraphQL &nbsp;:&nbsp; port 4000</span>
+</header>
+
+<div class="hero">
+  <h1>Three ways to access the ZWM.</h1>
+  <p>The Zuup World Model is a live Neo4j causal graph fed by nine Solana-deployed substrates. Choose the access track that fits your use case — then generate an API key and start querying in minutes.</p>
+</div>
+
+<div class="tracks">
+  <div class="track">
+    <div class="track-badge api">API Access</div>
+    <h2>Developers</h2>
+    <p class="audience">Technical teams that want to query world state, run compliance filters, and pull causal chains directly via REST or GraphQL.</p>
+    <ul>
+      <li>API key + REST endpoints (port 3001)</li>
+      <li>GraphQL schema (port 4000)</li>
+      <li><code>@zuup/zwm-sdk</code> TypeScript client</li>
+      <li>worldState, compositeRisk, causalChain queries</li>
+      <li>Full read access, devnet data</li>
+    </ul>
+    <button class="btn btn-teal" onclick="scrollToKey('API_ACCESS')">Generate API Key →</button>
+  </div>
+
+  <div class="track">
+    <div class="track-badge partner">Platform Partnership</div>
+    <h2>Integrators</h2>
+    <p class="audience">Organizations running Solana programs that want to join the ZWM graph as a substrate — emitting events and receiving causal triggers.</p>
+    <ul>
+      <li>Substrate onboarding spec</li>
+      <li><code>#[event]</code> Anchor contract template</li>
+      <li><code>POST /zwm/ingest</code> action contract</li>
+      <li>Causal rule co-authoring</li>
+      <li>Dedicated listener + parser build</li>
+    </ul>
+    <button class="btn btn-purple" onclick="scrollToKey('PLATFORM_PARTNERSHIP')">Partner Request →</button>
+  </div>
+
+  <div class="track">
+    <div class="track-badge inst">Institutional Access</div>
+    <h2>Enterprise Buyers</h2>
+    <p class="audience">Institutions that need live composite risk scores, full causal audit trails, on-chain attestations, and Veyra reasoning output for procurement and compliance decisions.</p>
+    <ul>
+      <li>Full FullWorldState read access</li>
+      <li>Veyra reasoning triggers (POST /zwm/ingest)</li>
+      <li>ZuupHQ on-chain attestations</li>
+      <li>ZUSDC settlement flag visibility</li>
+      <li>Dedicated SLA + support</li>
+    </ul>
+    <button class="btn btn-amber" onclick="scrollToKey('INSTITUTIONAL')">Contact Sales →</button>
+  </div>
+</div>
+
+<!-- ── API Key Generator ───────────────────────────────────────────────────── -->
+<div class="key-section" id="key-generator">
+  <h2>Generate an API Key</h2>
+  <p>Keys are provisioned instantly. Store the key — it is shown once. All data endpoints require the <code>X-ZWM-API-Key</code> header.</p>
+  <div class="key-form">
+    <select id="track-select">
+      <option value="API_ACCESS">API Access</option>
+      <option value="PLATFORM_PARTNERSHIP">Platform Partnership</option>
+      <option value="INSTITUTIONAL">Institutional</option>
+    </select>
+    <button class="btn btn-teal" onclick="generateKey()">Generate Key</button>
+  </div>
+  <div class="key-output" id="key-output">
+    <div>
+      <span id="key-value" class="key-value"></span>
+      <button class="copy-btn" onclick="copyKey()">[ copy ]</button>
+    </div>
+    <div class="key-meta" id="key-meta"></div>
+  </div>
+</div>
+
+<!-- ── SDK Quickstart ─────────────────────────────────────────────────────── -->
+<div class="quickstart">
+  <h2>SDK Quickstart</h2>
+  <p class="sub">From zero to a live ZWM query in three steps. Replace <code>YOUR_KEY</code> with the key generated above.</p>
+
+  <div class="steps">
+    <div>
+      <div class="step-label">Step 1 &mdash; Install</div>
+      <pre id="pre-install"><button class="copy-pre" onclick="copyPre('pre-install')">copy</button><span class="cmt"># Clone the repo and build the SDK locally (npm publish coming post-audit)</span>
+git clone https://github.com/khaaliswooden-max/zwn
+cd zwn/zuup-zwm-indexer/sdk
+npm install
+npx tsc</pre>
+    </div>
+
+    <div>
+      <div class="step-label">Step 2 &mdash; Instantiate</div>
+      <pre id="pre-init"><button class="copy-pre" onclick="copyPre('pre-init')">copy</button><span class="kw">import</span> { <span class="fn">ZWMClient</span> } <span class="kw">from</span> <span class="str">'./sdk'</span>;
+
+<span class="kw">const</span> client = <span class="kw">new</span> <span class="fn">ZWMClient</span>(
+  <span class="str">'YOUR_KEY'</span>,
+  <span class="str">'http://localhost:3001'</span>  <span class="cmt">// default; omit if running locally</span>
+);</pre>
+    </div>
+
+    <div>
+      <div class="step-label">Step 3 &mdash; Query</div>
+      <pre id="pre-query"><button class="copy-pre" onclick="copyPre('pre-query')">copy</button><span class="cmt">// Full world state across all substrates</span>
+<span class="kw">const</span> state = <span class="kw">await</span> client.<span class="fn">getWorldState</span>(<span class="str">'supplier-abc'</span>);
+console.<span class="fn">log</span>(state.compliance?.status);   <span class="cmt">// "COMPLIANT" | "VIOLATION" | "FLAGGED"</span>
+console.<span class="fn">log</span>(state.procurement?.fitiq);   <span class="cmt">// 0-100</span>
+
+<span class="cmt">// Composite risk (single-field risk score)</span>
+<span class="kw">const</span> risk = <span class="kw">await</span> client.<span class="fn">getCompositeRisk</span>(<span class="str">'supplier-abc'</span>);
+console.<span class="fn">log</span>(risk.riskLevel);  <span class="cmt">// "LOW" | "MEDIUM" | "HIGH" | "CRITICAL"</span>
+
+<span class="cmt">// Entities in violation across a compliance domain</span>
+<span class="kw">const</span> flagged = <span class="kw">await</span> client.<span class="fn">getEntitiesByCompliance</span>(<span class="str">'VIOLATION'</span>, <span class="str">'halal'</span>);
+
+<span class="cmt">// Full causal chain for a SubstrateEvent</span>
+<span class="kw">const</span> chain = <span class="kw">await</span> client.<span class="fn">getCausalChain</span>(<span class="str">'event-id'</span>);</pre>
+    </div>
+
+    <div>
+      <div class="step-label">Direct REST (no SDK)</div>
+      <pre id="pre-curl"><button class="copy-pre" onclick="copyPre('pre-curl')">copy</button><span class="cmt"># World state</span>
+curl -H <span class="str">"X-ZWM-API-Key: YOUR_KEY"</span> \\
+  http://localhost:3001/enterprise/world-state/supplier-abc
+
+<span class="cmt"># Composite risk</span>
+curl -H <span class="str">"X-ZWM-API-Key: YOUR_KEY"</span> \\
+  http://localhost:3001/enterprise/risk/supplier-abc
+
+<span class="cmt"># Entities in violation, halal domain</span>
+curl -H <span class="str">"X-ZWM-API-Key: YOUR_KEY"</span> \\
+  "http://localhost:3001/enterprise/compliance/VIOLATION?domain=halal"
+
+<span class="cmt"># Causal chain for an event</span>
+curl -H <span class="str">"X-ZWM-API-Key: YOUR_KEY"</span> \\
+  http://localhost:3001/enterprise/causal-chain/EVENT_ID
+
+<span class="cmt"># GraphQL (no key required — direct Neo4j queries)</span>
+curl -X POST http://localhost:4000/graphql \\
+  -H <span class="str">"Content-Type: application/json"</span> \\
+  -d <span class="str">'{"query":"{ compositeRisk(entityId:\\"supplier-abc\\") { riskLevel fitiq } }"}'</span></pre>
+    </div>
+  </div>
+</div>
+
+<!-- ── API Reference ───────────────────────────────────────────────────────── -->
+<div class="api-ref">
+  <h2>API Reference</h2>
+  <p class="sub">All endpoints except <code>POST /enterprise/api-keys</code> require the <code>X-ZWM-API-Key</code> header. CORS is open for browser usage.</p>
+
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method post">POST</span>
+      <span class="endpoint-path">/enterprise/api-keys</span>
+      <span class="endpoint-desc">Generate a new API key — no auth required</span>
+    </div>
+    <div class="endpoint-body">
+      <table class="param-table">
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td>track</td><td>string</td><td><code>API_ACCESS</code> | <code>PLATFORM_PARTNERSHIP</code> | <code>INSTITUTIONAL</code> (default: API_ACCESS)</td></tr>
+      </table>
+      <pre style="margin-top:12px"><span class="cmt">// Response 201</span>
+{ <span class="str">"key"</span>: <span class="str">"zwm_abc123..."</span>, <span class="str">"track"</span>: <span class="str">"API_ACCESS"</span>, <span class="str">"createdAt"</span>: 1712345678000 }</pre>
+    </div>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method get">GET</span>
+      <span class="endpoint-path">/enterprise/world-state/:entityId</span>
+      <span class="endpoint-desc">Full current state across all substrates</span>
+    </div>
+    <div class="endpoint-body">
+      <table class="param-table">
+        <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+        <tr><td>entityId<span class="required">required</span></td><td>path</td><td>WorldActor id (URL-encoded)</td></tr>
+      </table>
+      <pre style="margin-top:12px"><span class="cmt">// Response 200 — FullWorldState</span>
+{
+  <span class="str">"actor"</span>: { <span class="str">"id"</span>: <span class="str">"supplier-abc"</span>, <span class="str">"created_at"</span>: 1712000000 },
+  <span class="str">"compliance"</span>:  { <span class="str">"status"</span>: <span class="str">"COMPLIANT"</span>, <span class="str">"score"</span>: 92, <span class="str">"domain"</span>: <span class="str">"halal"</span> },
+  <span class="str">"procurement"</span>: { <span class="str">"fitiq"</span>: 78, <span class="str">"upd"</span>: 81 },
+  <span class="str">"compute"</span>:     { <span class="str">"xdop_score"</span>: 95, <span class="str">"availability"</span>: 0.9999 }
+}</pre>
+    </div>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method get">GET</span>
+      <span class="endpoint-path">/enterprise/risk/:entityId</span>
+      <span class="endpoint-desc">Composite risk score aggregated across substrates</span>
+    </div>
+    <div class="endpoint-body">
+      <table class="param-table">
+        <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+        <tr><td>entityId<span class="required">required</span></td><td>path</td><td>WorldActor id</td></tr>
+      </table>
+      <pre style="margin-top:12px"><span class="cmt">// Response 200 — CompositeRisk</span>
+{
+  <span class="str">"entityId"</span>: <span class="str">"supplier-abc"</span>,
+  <span class="str">"complianceStatus"</span>: <span class="str">"COMPLIANT"</span>,
+  <span class="str">"complianceScore"</span>: 92,
+  <span class="str">"fitiq"</span>: 78,
+  <span class="str">"availability"</span>: 0.9999,
+  <span class="str">"anomalyFlag"</span>: <span class="kw">false</span>,
+  <span class="str">"riskLevel"</span>: <span class="str">"LOW"</span>  <span class="cmt">// LOW | MEDIUM | HIGH | CRITICAL</span>
+}</pre>
+    </div>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method get">GET</span>
+      <span class="endpoint-path">/enterprise/compliance/:status</span>
+      <span class="endpoint-desc">All entities at the given compliance status</span>
+    </div>
+    <div class="endpoint-body">
+      <table class="param-table">
+        <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+        <tr><td>status<span class="required">required</span></td><td>path</td><td><code>COMPLIANT</code> | <code>VIOLATION</code> | <code>FLAGGED</code></td></tr>
+        <tr><td>domain</td><td>query</td><td>Filter by domain: <code>halal</code> | <code>esg</code> | <code>itar</code></td></tr>
+      </table>
+      <pre style="margin-top:12px"><span class="cmt">// Response 200 — WorldActor[]</span>
+[{ <span class="str">"id"</span>: <span class="str">"supplier-abc"</span> }, { <span class="str">"id"</span>: <span class="str">"supplier-xyz"</span> }]</pre>
+    </div>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-header" onclick="toggleEndpoint(this)">
+      <span class="method get">GET</span>
+      <span class="endpoint-path">/enterprise/causal-chain/:eventId</span>
+      <span class="endpoint-desc">All effect nodes caused by a SubstrateEvent</span>
+    </div>
+    <div class="endpoint-body">
+      <table class="param-table">
+        <tr><th>Param</th><th>Type</th><th>Description</th></tr>
+        <tr><td>eventId<span class="required">required</span></td><td>path</td><td>SubstrateEvent id (UUID)</td></tr>
+      </table>
+      <pre style="margin-top:12px"><span class="cmt">// Response 200 — CausalLink[]</span>
+[{
+  <span class="str">"event"</span>: { <span class="str">"id"</span>: <span class="str">"event-abc"</span>, <span class="str">"type"</span>: <span class="str">"COMPLIANCE_STATE_CHANGE"</span>, <span class="str">"source"</span>: <span class="str">"civium"</span> },
+  <span class="str">"effect"</span>: { <span class="str">"id"</span>: <span class="str">"proc-xyz"</span>, <span class="str">"fitiq"</span>: 47, <span class="str">"entity_id"</span>: <span class="str">"supplier-abc"</span> }
+}]</pre>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <span>Zuup Innovation Lab &nbsp;·&nbsp; Huntsville, Alabama &nbsp;·&nbsp; zuup.org</span>
+  <span>ZWM Enterprise API v0.1.0 &nbsp;·&nbsp; Solana Devnet</span>
+</footer>
+
+<script>
+  function scrollToKey(track) {
+    document.getElementById('track-select').value = track;
+    document.getElementById('key-generator').scrollIntoView({ behavior: 'smooth' });
+    setTimeout(generateKey, 400);
+  }
+
+  async function generateKey() {
+    const track = document.getElementById('track-select').value;
+    const out   = document.getElementById('key-output');
+    const kv    = document.getElementById('key-value');
+    const km    = document.getElementById('key-meta');
+    try {
+      const res  = await fetch('/enterprise/api-keys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ track })
+      });
+      const data = await res.json();
+      kv.textContent = data.key;
+      km.textContent = 'Track: ' + data.track + '  ·  Created: ' + new Date(data.createdAt).toISOString();
+      out.style.display = 'block';
+    } catch (e) {
+      kv.textContent = 'Error generating key. Is the server running?';
+      out.style.display = 'block';
+    }
+  }
+
+  function copyKey() {
+    navigator.clipboard.writeText(document.getElementById('key-value').textContent);
+  }
+
+  function copyPre(id) {
+    const pre  = document.getElementById(id);
+    const text = pre.innerText.replace(/^copy\\n/, '');
+    navigator.clipboard.writeText(text);
+  }
+
+  function toggleEndpoint(header) {
+    const body = header.nextElementSibling;
+    body.classList.toggle('open');
+  }
+</script>
+</body>
+</html>`;
+
 // ─── Server ───────────────────────────────────────────────────────────────────
 
 export async function startEnterpriseApi(driver: Driver): Promise<void> {
@@ -215,6 +621,13 @@ export async function startEnterpriseApi(driver: Driver): Promise<void> {
     }
 
     try {
+      // GET / — serve the /build page
+      if (method === 'GET' && (url === '/' || url === '/build')) {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(BUILD_PAGE_HTML);
+        return;
+      }
+
       // POST /enterprise/api-keys — no auth required (bootstrap endpoint)
       if (method === 'POST' && url === '/enterprise/api-keys') {
         await handleGenerateKey(req, res);
