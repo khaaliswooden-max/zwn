@@ -2,10 +2,10 @@
   "name": "zuup-zwm-indexer",
   "version": "0.1.0",
   "description": "Zuup World Model — Solana indexer, Neo4j graph, GraphQL API",
-  "main": "dist/index.js",
+  "main": "dist/src/index.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
+    "start": "node dist/src/index.js",
     "dev": "ts-node src/index.ts",
     "test": "jest",
     "test:e2e": "ts-node --project tsconfig.test.json --transpile-only tests/civium-e2e.ts"
