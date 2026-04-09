@@ -1,0 +1,9 @@
+{
+  "/_global-error/page": "app/_global-error/page.js",
+  "/_not-found/page": "app/_not-found/page.js",
+  "/console/page": "app/console/page.js",
+  "/entities/[id]/page": "app/entities/[id]/page.js",
+  "/graph/page": "app/graph/page.js",
+  "/ingest/page": "app/ingest/page.js",
+  "/page": "app/page.js"
+}
