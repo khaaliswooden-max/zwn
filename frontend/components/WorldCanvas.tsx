@@ -1,5 +1,6 @@
 'use client';
 
+import { Component, ReactNode } from 'react';
 import dynamic from 'next/dynamic';
 
 const NebulaCanvas = dynamic(
@@ -14,10 +15,53 @@ const NebulaCanvas = dynamic(
   },
 );
 
+interface ErrorState {
+  hasError: boolean;
+  error: string;
+}
+
+class CanvasErrorBoundary extends Component<
+  { children: ReactNode; height?: number },
+  ErrorState
+> {
+  constructor(props: { children: ReactNode; height?: number }) {
+    super(props);
+    this.state = { hasError: false, error: '' };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorState {
+    return { hasError: true, error: error.message || String(error) };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full h-full flex flex-col items-center justify-center bg-zwn-bg text-zwn-muted text-[11px] tracking-widest gap-4 p-8">
+          <div className="text-zwn-coral">canvas failed to initialize</div>
+          <div className="text-[9px] max-w-md break-all text-center opacity-60">
+            {this.state.error}
+          </div>
+          <button
+            onClick={() => this.setState({ hasError: false, error: '' })}
+            className="text-[10px] text-zwn-teal border border-zwn-border px-3 py-1 rounded hover:bg-zwn-surface"
+          >
+            retry
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 interface Props {
   height?: number;
 }
 
 export default function WorldCanvas({ height }: Props) {
-  return <NebulaCanvas height={height} />;
+  return (
+    <CanvasErrorBoundary height={height}>
+      <NebulaCanvas height={height} />
+    </CanvasErrorBoundary>
+  );
 }

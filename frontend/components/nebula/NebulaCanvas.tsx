@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls } from '@react-three/drei';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import GaussianSplatRenderer from './GaussianSplatRenderer';
 import ClusterHitMeshes from './ClusterHitMeshes';
@@ -17,7 +16,49 @@ import { SelectedCluster, CausalAnimation } from '@/lib/nebula/types';
 import { hexToRgb } from '@/lib/nebula/gaussian-math';
 import { SUBSTRATE_COLORS } from '@/lib/constants';
 
-// ── Camera focus animation (runs inside R3F loop, no React state) ────────────
+// ── OrbitControls (inline to avoid @react-three/drei dependency weight) ──────
+
+function SimpleOrbitControls() {
+  const { camera, gl } = useThree();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const controlsRef = useRef<any>(null);
+
+  useEffect(() => {
+    let controls: InstanceType<typeof THREE.EventDispatcher> | null = null;
+
+    import('three/examples/jsm/controls/OrbitControls.js').then(
+      ({ OrbitControls }) => {
+        const oc = new OrbitControls(camera, gl.domElement);
+        oc.enableDamping = true;
+        oc.dampingFactor = 0.08;
+        oc.minDistance = 2;
+        oc.maxDistance = 50;
+        oc.maxPolarAngle = Math.PI * 0.94;
+        oc.minPolarAngle = Math.PI * 0.06;
+        oc.autoRotate = true;
+        oc.autoRotateSpeed = 0.3;
+        controlsRef.current = oc;
+        controls = oc;
+      },
+    );
+
+    return () => {
+      if (controlsRef.current) {
+        controlsRef.current.dispose();
+      }
+    };
+  }, [camera, gl]);
+
+  useFrame(() => {
+    if (controlsRef.current) {
+      controlsRef.current.update();
+    }
+  });
+
+  return null;
+}
+
+// ── Camera focus animation ───────────────────────────────────────────────────
 
 function CameraAnimator({
   target,
@@ -61,7 +102,7 @@ function CameraAnimator({
   return null;
 }
 
-// ── Causal animation manager (runs inside R3F loop) ──────────────────────────
+// ── Causal animation manager ─────────────────────────────────────────────────
 
 function CausalAnimManager({
   animsRef,
@@ -191,16 +232,7 @@ export default function NebulaCanvas({ height }: Props) {
           onDoubleClick={handleDoubleClick}
         />
 
-        <OrbitControls
-          enableDamping
-          dampingFactor={0.08}
-          minDistance={2}
-          maxDistance={50}
-          maxPolarAngle={Math.PI * 0.94}
-          minPolarAngle={Math.PI * 0.06}
-          autoRotate
-          autoRotateSpeed={0.3}
-        />
+        <SimpleOrbitControls />
 
         <ambientLight intensity={0.15} />
       </Canvas>
