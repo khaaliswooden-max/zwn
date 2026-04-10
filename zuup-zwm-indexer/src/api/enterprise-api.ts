@@ -1,6 +1,8 @@
 import http, { IncomingMessage, ServerResponse } from 'http';
 import { Driver } from 'neo4j-driver';
 import { generateKey, validateKey, AccessTrack } from './api-key-store';
+import { queryCache } from './query-cache';
+import { getDeadLetterQueue, clearDeadLetterQueue } from '../causal/propagation-engine';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -625,6 +627,26 @@ export async function startEnterpriseApi(driver: Driver): Promise<void> {
       if (method === 'GET' && (url === '/' || url === '/build')) {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(BUILD_PAGE_HTML);
+        return;
+      }
+
+      // GET /health — public health check (no auth)
+      if (method === 'GET' && url === '/health') {
+        const dlq = getDeadLetterQueue();
+        sendJson(res, 200, {
+          status: 'ok',
+          uptime: process.uptime(),
+          cache: queryCache.stats(),
+          deadLetterQueue: { size: dlq.length, entries: dlq.slice(-10) },
+          timestamp: Date.now(),
+        });
+        return;
+      }
+
+      // POST /enterprise/clear-dead-letters — clear dead-letter queue (no auth, ops tool)
+      if (method === 'POST' && url === '/enterprise/clear-dead-letters') {
+        const cleared = clearDeadLetterQueue();
+        sendJson(res, 200, { cleared, status: 'ok' });
         return;
       }
 
