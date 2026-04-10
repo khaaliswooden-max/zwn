@@ -1,0 +1,46 @@
+{
+  "version": "0.1.0",
+  "name": "qal",
+  "address": "QALxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "metadata": {
+    "name": "qal",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "QAL historical reconstruction program"
+  },
+  "instructions": [],
+  "accounts": [],
+  "events": [
+    {
+      "name": "ReconstructionComplete",
+      "discriminator": [101, 42, 77, 183, 55, 12, 199, 214],
+      "fields": [
+        { "name": "entity_id", "type": "string", "index": false },
+        { "name": "domain", "type": "string", "index": false },
+        { "name": "confidence", "type": "f64", "index": false },
+        { "name": "temporal_depth_years", "type": "u32", "index": false },
+        { "name": "risk_level", "type": "string", "index": false },
+        { "name": "result_hash", "type": { "array": ["u8", 32] }, "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "ReconstructionComplete",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "entity_id", "type": "string" },
+          { "name": "domain", "type": "string" },
+          { "name": "confidence", "type": "f64" },
+          { "name": "temporal_depth_years", "type": "u32" },
+          { "name": "risk_level", "type": "string" },
+          { "name": "result_hash", "type": { "array": ["u8", 32] } },
+          { "name": "timestamp", "type": "i64" }
+        ]
+      }
+    }
+  ],
+  "errors": []
+}

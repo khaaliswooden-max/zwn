@@ -6,6 +6,13 @@ import { startGraphQL } from './api/graphql-server';
 import { startEnterpriseApi } from './api/enterprise-api';
 import { startCiviumListener } from './listeners/civium-listener';
 import { startAureonListener } from './listeners/aureon-listener';
+import { startQalListener } from './listeners/qal-listener';
+import { startSymbionListener } from './listeners/symbion-listener';
+import { startRelianListener } from './listeners/relian-listener';
+import { startPodxListener } from './listeners/podx-listener';
+import { startVeyraListener } from './listeners/veyra-listener';
+import { startZusdcListener } from './listeners/zusdc-listener';
+import { startZuuphqListener } from './listeners/zuuphq-listener';
 
 // Governance + Economics modules (Phase 4 — 100-year positioning)
 // Writers are invoked by causal rules and API endpoints, not at startup.
@@ -40,11 +47,30 @@ async function main(): Promise<void> {
     { wsEndpoint: process.env['SOLANA_RPC_WS']! }
   );
 
-  // 5. Start platform listeners
-  startCiviumListener(connection, driver);
-  startAureonListener(connection, driver);
+  // 5. Start all 9 platform listeners (guarded by env var — missing IDs log warning)
+  const listeners = [
+    { name: 'civium',  envKey: 'CIVIUM_PROGRAM_ID',  start: startCiviumListener },
+    { name: 'aureon',  envKey: 'AUREON_PROGRAM_ID',  start: startAureonListener },
+    { name: 'qal',     envKey: 'QAL_PROGRAM_ID',     start: startQalListener },
+    { name: 'symbion', envKey: 'SYMBION_PROGRAM_ID', start: startSymbionListener },
+    { name: 'relian',  envKey: 'RELIAN_PROGRAM_ID',  start: startRelianListener },
+    { name: 'podx',    envKey: 'PODX_PROGRAM_ID',    start: startPodxListener },
+    { name: 'veyra',   envKey: 'VEYRA_PROGRAM_ID',   start: startVeyraListener },
+    { name: 'zusdc',   envKey: 'ZUSDC_PROGRAM_ID',   start: startZusdcListener },
+    { name: 'zuuphq',  envKey: 'ZUUPHQ_PROGRAM_ID',  start: startZuuphqListener },
+  ];
 
-  console.log('[index] ZWM indexer running.');
+  let activeCount = 0;
+  for (const { name, envKey, start } of listeners) {
+    if (process.env[envKey]) {
+      start(connection, driver);
+      activeCount++;
+    } else {
+      console.warn(`[index] Skipping ${name} listener — ${envKey} not set`);
+    }
+  }
+
+  console.log(`[index] ZWM indexer running. ${activeCount}/9 platform listeners active.`);
   console.log('[index] Governance + Economics layers loaded (Phase 4).');
 }
 

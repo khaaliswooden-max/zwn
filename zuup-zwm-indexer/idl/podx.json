@@ -1,0 +1,46 @@
+{
+  "version": "0.1.0",
+  "name": "podx",
+  "address": "PODXxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "metadata": {
+    "name": "podx",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "PodX distributed compute program"
+  },
+  "instructions": [],
+  "accounts": [],
+  "events": [
+    {
+      "name": "ComputeStateUpdate",
+      "discriminator": [200, 115, 42, 88, 167, 31, 244, 78],
+      "fields": [
+        { "name": "node_id", "type": "string", "index": false },
+        { "name": "xdop_score", "type": "u8", "index": false },
+        { "name": "wcbi_score", "type": "u8", "index": false },
+        { "name": "ddil_hours", "type": "f64", "index": false },
+        { "name": "tops", "type": "u32", "index": false },
+        { "name": "availability", "type": "f64", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "ComputeStateUpdate",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "node_id", "type": "string" },
+          { "name": "xdop_score", "type": "u8" },
+          { "name": "wcbi_score", "type": "u8" },
+          { "name": "ddil_hours", "type": "f64" },
+          { "name": "tops", "type": "u32" },
+          { "name": "availability", "type": "f64" },
+          { "name": "timestamp", "type": "i64" }
+        ]
+      }
+    }
+  ],
+  "errors": []
+}

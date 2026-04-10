@@ -1,0 +1,44 @@
+{
+  "version": "0.1.0",
+  "name": "veyra",
+  "address": "VEYRxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "metadata": {
+    "name": "veyra",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Veyra reasoning engine program"
+  },
+  "instructions": [],
+  "accounts": [],
+  "events": [
+    {
+      "name": "ReasoningComplete",
+      "discriminator": [55, 188, 99, 210, 144, 73, 27, 162],
+      "fields": [
+        { "name": "request_id", "type": "string", "index": false },
+        { "name": "context", "type": "string", "index": false },
+        { "name": "v_score", "type": "u8", "index": false },
+        { "name": "latency_ms", "type": "u32", "index": false },
+        { "name": "output_hash", "type": { "array": ["u8", 32] }, "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "ReasoningComplete",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "request_id", "type": "string" },
+          { "name": "context", "type": "string" },
+          { "name": "v_score", "type": "u8" },
+          { "name": "latency_ms", "type": "u32" },
+          { "name": "output_hash", "type": { "array": ["u8", 32] } },
+          { "name": "timestamp", "type": "i64" }
+        ]
+      }
+    }
+  ],
+  "errors": []
+}
