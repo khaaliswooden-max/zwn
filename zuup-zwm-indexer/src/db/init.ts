@@ -1,6 +1,7 @@
 import { Driver } from 'neo4j-driver';
 
 const CONSTRAINTS: string[] = [
+  // --- Core substrate state constraints ---
   'CREATE CONSTRAINT worldactor_id IF NOT EXISTS FOR (n:WorldActor) REQUIRE n.id IS UNIQUE',
   'CREATE CONSTRAINT compliancestate_id IF NOT EXISTS FOR (n:ComplianceState) REQUIRE n.id IS UNIQUE',
   'CREATE CONSTRAINT procurementstate_id IF NOT EXISTS FOR (n:ProcurementState) REQUIRE n.id IS UNIQUE',
@@ -10,13 +11,24 @@ const CONSTRAINTS: string[] = [
   'CREATE CONSTRAINT computestate_id IF NOT EXISTS FOR (n:ComputeState) REQUIRE n.id IS UNIQUE',
   'CREATE CONSTRAINT substratevent_id IF NOT EXISTS FOR (n:SubstrateEvent) REQUIRE n.id IS UNIQUE',
   'CREATE CONSTRAINT attestation_id IF NOT EXISTS FOR (n:Attestation) REQUIRE n.id IS UNIQUE',
+  // --- Governance + Economics constraints ---
+  'CREATE CONSTRAINT objectivestate_id IF NOT EXISTS FOR (n:ObjectiveState) REQUIRE n.id IS UNIQUE',
+  'CREATE CONSTRAINT treatyattestation_id IF NOT EXISTS FOR (n:TreatyAttestation) REQUIRE n.id IS UNIQUE',
+  'CREATE CONSTRAINT feerecord_id IF NOT EXISTS FOR (n:FeeRecord) REQUIRE n.id IS UNIQUE',
+  'CREATE CONSTRAINT scalemetric_id IF NOT EXISTS FOR (n:ScaleMetric) REQUIRE n.id IS UNIQUE',
 ];
 
 const INDEXES: string[] = [
+  // --- Core substrate state indexes ---
   'CREATE INDEX compliancestate_entity_ts IF NOT EXISTS FOR (n:ComplianceState) ON (n.entity_id, n.timestamp)',
   'CREATE INDEX procurementstate_entity_ts IF NOT EXISTS FOR (n:ProcurementState) ON (n.entity_id, n.timestamp)',
   'CREATE INDEX biologicalstate_entity_ts IF NOT EXISTS FOR (n:BiologicalState) ON (n.entity_id, n.timestamp)',
   'CREATE INDEX substratevent_source_type_ts IF NOT EXISTS FOR (n:SubstrateEvent) ON (n.source, n.type, n.timestamp)',
+  // --- Governance + Economics indexes ---
+  'CREATE INDEX objectivestate_status_ts IF NOT EXISTS FOR (n:ObjectiveState) ON (n.status, n.timestamp)',
+  'CREATE INDEX treatyattestation_jurisdiction IF NOT EXISTS FOR (n:TreatyAttestation) ON (n.jurisdiction_code, n.effective_date)',
+  'CREATE INDEX feerecord_entity_ts IF NOT EXISTS FOR (n:FeeRecord) ON (n.entity_id, n.timestamp)',
+  'CREATE INDEX scalemetric_platform_ts IF NOT EXISTS FOR (n:ScaleMetric) ON (n.platform, n.timestamp)',
 ];
 
 export async function initDb(driver: Driver): Promise<void> {

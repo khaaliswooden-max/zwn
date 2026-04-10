@@ -109,12 +109,80 @@ const typeDefs = `#graphql
     compute: ComputeState
   }
 
+  # --- Governance types ---
+  type ObjectiveState {
+    id: String!
+    objective_type: String!
+    target_metric: String!
+    target_value: Float!
+    time_horizon_years: Int!
+    omega_floor: Float
+    lyapunov_envelope: Float
+    status: String!
+    proposer_id: String
+    dao_vote_id: String
+    timestamp: Float
+    solana_slot: Int
+  }
+
+  type TreatyAttestation {
+    id: String!
+    jurisdiction_code: String!
+    jurisdiction_name: String!
+    treaty_type: String!
+    compliance_domain: String
+    bilateral_partner: String
+    effective_date: Float
+    expiry_date: Float
+    timestamp: Float
+  }
+
+  type JurisdictionalSummary {
+    totalTreaties: Int!
+    activeJurisdictions: Int!
+    jurisdictionCodes: [String]
+    coverageDomains: [String]
+  }
+
+  # --- Economics types ---
+  type FeeRecord {
+    id: String!
+    settlement_id: String!
+    fee_amount_usdc: Float!
+    fee_basis_points: Int!
+    fee_type: String!
+    source_platform: String
+    target_platform: String
+    entity_id: String
+    timestamp: Float
+  }
+
+  type ScaleMetric {
+    id: String!
+    platform: String!
+    omega_rsf: Float!
+    omega_max: Float!
+    entropy_production: Float
+    lyapunov_exponent: Float
+    market_footprint: Float
+    jurisdictional_coverage: Float
+    assessment_status: String!
+    timestamp: Float
+  }
+
   type Query {
     worldState(entityId: String!): WorldActor
     entitiesByCompliance(status: String!, domain: String): [WorldActor]
     causalChain(substrateEventId: String!): [CausalLink]
     compositeRisk(entityId: String!): CompositeRisk
     fullWorldState(entityId: String!): FullWorldState
+    # Governance queries
+    activeObjectives: [ObjectiveState]
+    treatyCoverage: [TreatyAttestation]
+    jurisdictionalFootprint: JurisdictionalSummary
+    # Economics queries
+    feeHistory(entityId: String!, limit: Int): [FeeRecord]
+    scaleAssessment(platform: String!): ScaleMetric
   }
 `;
 
@@ -248,6 +316,105 @@ function buildResolvers(driver: Driver) {
             }
           }
           return result;
+        } finally {
+          await session.close();
+        }
+      },
+
+      // --- Governance resolvers ---
+
+      async activeObjectives() {
+        const session = driver.session();
+        try {
+          const result = await session.run(
+            `MATCH (o:ObjectiveState)
+             WHERE o.status IN ['ACTIVE', 'APPROVED']
+               AND NOT (o)-[:SUPERSEDES]->()
+             RETURN o
+             ORDER BY o.timestamp DESC`
+          );
+          return result.records.map((r) => r.get('o').properties);
+        } finally {
+          await session.close();
+        }
+      },
+
+      async treatyCoverage() {
+        const session = driver.session();
+        const now = Date.now();
+        try {
+          const result = await session.run(
+            `MATCH (t:TreatyAttestation)
+             WHERE t.expiry_date > $now OR t.expiry_date = 0
+             RETURN t
+             ORDER BY t.effective_date DESC`,
+            { now }
+          );
+          return result.records.map((r) => r.get('t').properties);
+        } finally {
+          await session.close();
+        }
+      },
+
+      async jurisdictionalFootprint() {
+        const session = driver.session();
+        const now = Date.now();
+        try {
+          const result = await session.run(
+            `MATCH (t:TreatyAttestation)
+             WHERE t.expiry_date > $now OR t.expiry_date = 0
+             RETURN count(t) AS total,
+                    count(DISTINCT t.jurisdiction_code) AS jurisdictions,
+                    collect(DISTINCT t.jurisdiction_code) AS codes,
+                    collect(DISTINCT t.compliance_domain) AS domains`,
+            { now }
+          );
+          if (result.records.length === 0) {
+            return { totalTreaties: 0, activeJurisdictions: 0, jurisdictionCodes: [], coverageDomains: [] };
+          }
+          const rec = result.records[0];
+          return {
+            totalTreaties: Number(rec.get('total')),
+            activeJurisdictions: Number(rec.get('jurisdictions')),
+            jurisdictionCodes: rec.get('codes'),
+            coverageDomains: rec.get('domains'),
+          };
+        } finally {
+          await session.close();
+        }
+      },
+
+      // --- Economics resolvers ---
+
+      async feeHistory(_: unknown, { entityId, limit }: { entityId: string; limit?: number }) {
+        const session = driver.session();
+        const cap = limit ?? 50;
+        try {
+          const result = await session.run(
+            `MATCH (f:FeeRecord {entity_id: $entityId})
+             RETURN f
+             ORDER BY f.timestamp DESC
+             LIMIT $cap`,
+            { entityId, cap }
+          );
+          return result.records.map((r) => r.get('f').properties);
+        } finally {
+          await session.close();
+        }
+      },
+
+      async scaleAssessment(_: unknown, { platform }: { platform: string }) {
+        const session = driver.session();
+        try {
+          const result = await session.run(
+            `MATCH (m:ScaleMetric {platform: $platform})
+             WHERE NOT (m)-[:SUPERSEDES]->()
+             RETURN m
+             LIMIT 1`,
+            { platform }
+          );
+          if (result.records.length === 0) return null;
+          return result.records[0].get('m').properties;
         } finally {
           await session.close();
         }
