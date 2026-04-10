@@ -19,11 +19,15 @@ export function startZusdcListener(connection: Connection, driver: Driver): void
             driver, event, ctx.slot, logs.signature
           );
 
-          await evaluateAndPropagate(
+          // Fire-and-forget: don't block the next event on causal propagation
+          evaluateAndPropagate(
             'SETTLEMENT_EVENT', 'zusdc',
             { ...event, entityId: event.counterpartyId, amount: event.amountUsdc },
             substrateEventId
-          );
+          ).catch((pErr) => {
+            const pMsg = pErr instanceof Error ? pErr.message : String(pErr);
+            console.error(`[zusdc-listener] Causal propagation error: ${pMsg}`);
+          });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error(`[zusdc-listener] Error processing event: ${msg}`);

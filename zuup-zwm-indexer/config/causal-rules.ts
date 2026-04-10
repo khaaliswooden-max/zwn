@@ -6,6 +6,8 @@ export interface CausalRule {
   effect: string;          // action string sent to target
   targetEnvKey: string;    // env var holding target ingest URL
   effectParams: (payload: Record<string, unknown>, substrateEventId: string) => Record<string, unknown>;
+  timeoutMs?: number;      // per-rule HTTP timeout (default: 10000)
+  maxRetries?: number;     // per-rule retry limit (default: 3)
 }
 
 export const CAUSAL_RULES: CausalRule[] = [
@@ -70,6 +72,7 @@ export const CAUSAL_RULES: CausalRule[] = [
     condition: (p) => p['severity'] === 'HIGH',
     effect: 'TRIGGER_REASONING',
     targetEnvKey: 'VEYRA_INGEST_URL',
+    timeoutMs: 30_000,  // reasoning takes longer
     effectParams: (p, eventId) => ({
       context: 'BIOLOGICAL_ANOMALY_HIGH',
       subjectId: p['subjectId'],
@@ -97,6 +100,7 @@ export const CAUSAL_RULES: CausalRule[] = [
     condition: (p) => Number(p['availability']) < 0.90,
     effect: 'TRIGGER_REASONING',
     targetEnvKey: 'VEYRA_INGEST_URL',
+    timeoutMs: 30_000,  // reasoning takes longer
     effectParams: (p, eventId) => ({
       context: 'COMPUTE_DEGRADATION',
       nodeId: p['nodeId'],
@@ -142,6 +146,7 @@ export const CAUSAL_RULES: CausalRule[] = [
     condition: (p) => Number(p['omegaRsf']) > Number(p['omegaMax']),
     effect: 'TRIGGER_REASONING',
     targetEnvKey: 'VEYRA_INGEST_URL',
+    timeoutMs: 30_000,  // reasoning takes longer
     effectParams: (p, eventId) => ({
       context: 'SCALE_BREACH',
       platform: p['platform'],

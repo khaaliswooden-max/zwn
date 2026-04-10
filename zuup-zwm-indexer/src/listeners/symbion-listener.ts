@@ -19,11 +19,15 @@ export function startSymbionListener(connection: Connection, driver: Driver): vo
             driver, event, ctx.slot, logs.signature
           );
 
-          await evaluateAndPropagate(
+          // Fire-and-forget: don't block the next event on causal propagation
+          evaluateAndPropagate(
             'BIOLOGICAL_ANOMALY', 'symbion',
             { ...event, entityId: event.subjectId, severity: event.severity },
             substrateEventId
-          );
+          ).catch((pErr) => {
+            const pMsg = pErr instanceof Error ? pErr.message : String(pErr);
+            console.error(`[symbion-listener] Causal propagation error: ${pMsg}`);
+          });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error(`[symbion-listener] Error processing event: ${msg}`);

@@ -19,11 +19,15 @@ export function startRelianListener(connection: Connection, driver: Driver): voi
             driver, event, ctx.slot, logs.signature
           );
 
-          await evaluateAndPropagate(
+          // Fire-and-forget: don't block the next event on causal propagation
+          evaluateAndPropagate(
             'MIGRATION_COMPLETE', 'relian',
             { ...event, entityId: event.projectId, semanticPreservation: event.semanticPreservation },
             substrateEventId
-          );
+          ).catch((pErr) => {
+            const pMsg = pErr instanceof Error ? pErr.message : String(pErr);
+            console.error(`[relian-listener] Causal propagation error: ${pMsg}`);
+          });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error(`[relian-listener] Error processing event: ${msg}`);

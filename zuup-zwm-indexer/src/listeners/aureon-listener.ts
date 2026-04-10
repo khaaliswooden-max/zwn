@@ -22,12 +22,16 @@ export function startAureonListener(connection: Connection, driver: Driver): voi
             logs.signature
           );
 
-          await evaluateAndPropagate(
+          // Fire-and-forget: don't block the next event on causal propagation
+          evaluateAndPropagate(
             'PROCUREMENT_STATE_CHANGE',
             'aureon',
             { ...event, entityId: event.entityId },
             substrateEventId
-          );
+          ).catch((pErr) => {
+            const pMsg = pErr instanceof Error ? pErr.message : String(pErr);
+            console.error(`[aureon-listener] Causal propagation error: ${pMsg}`);
+          });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error(`[aureon-listener] Error processing event: ${msg}`);

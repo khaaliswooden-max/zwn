@@ -22,12 +22,16 @@ export function startCiviumListener(connection: Connection, driver: Driver): voi
             logs.signature
           );
 
-          await evaluateAndPropagate(
+          // Fire-and-forget: don't block the next event on causal propagation
+          evaluateAndPropagate(
             'COMPLIANCE_STATE_CHANGE',
             'civium',
             { ...event, entityId: event.entityId },
             substrateEventId
-          );
+          ).catch((propagationErr) => {
+            const pMsg = propagationErr instanceof Error ? propagationErr.message : String(propagationErr);
+            console.error(`[civium-listener] Causal propagation error: ${pMsg}`);
+          });
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           console.error(`[civium-listener] Error processing event: ${msg}`);
