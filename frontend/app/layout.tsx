@@ -4,7 +4,7 @@ import NavBar from '@/components/NavBar';
 import StatusBar from '@/components/StatusBar';
 
 export const metadata: Metadata = {
-  title: 'ZWN — Zuup World Network',
+  title: 'ZWM — Zuup World Model',
   description: 'Zuup World Model developer portal',
 };
 

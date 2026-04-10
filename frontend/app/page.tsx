@@ -50,8 +50,8 @@ export default function HomePage() {
       <div className="w-full max-w-sm space-y-8">
         {/* Wordmark */}
         <div className="text-center space-y-1">
-          <div className="text-[9px] text-zwn-muted tracking-[0.3em]">ZUUP WORLD NETWORK</div>
-          <div className="text-2xl text-zwn-teal font-semibold tracking-widest">ZWN</div>
+          <div className="text-[9px] text-zwn-muted tracking-[0.3em]">ZUUP WORLD MODEL</div>
+          <div className="text-2xl text-zwn-teal font-semibold tracking-widest">ZWM</div>
         </div>
 
         {/* Search */}
