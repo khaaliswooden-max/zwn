@@ -19,6 +19,7 @@ import { startZuuphqListener } from './listeners/zuuphq-listener';
 // Importing here validates the modules load correctly at bootstrap.
 import './governance/types';
 import './economics/types';
+import { metrics } from './lib/metrics';
 
 async function main(): Promise<void> {
   // Neo4j driver (connection pool: up to 50 connections, 30s acquisition timeout)
@@ -70,8 +71,10 @@ async function main(): Promise<void> {
     }
   }
 
+  metrics.activeListeners.set({}, activeCount);
   console.log(`[index] ZWM indexer running. ${activeCount}/9 platform listeners active.`);
   console.log('[index] Governance + Economics layers loaded (Phase 4).');
+  console.log('[index] Metrics available at http://localhost:3001/metrics (Prometheus format).');
 }
 
 main().catch((err) => {

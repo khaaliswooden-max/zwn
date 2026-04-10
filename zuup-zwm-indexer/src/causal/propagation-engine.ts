@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { CausalRule, CAUSAL_RULES } from '../../config/causal-rules';
+import { metrics } from '../lib/metrics';
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_RETRIES = 3;
@@ -41,8 +42,10 @@ async function fireRuleWithRetry(
 ): Promise<boolean> {
   const maxRetries = rule.maxRetries ?? DEFAULT_MAX_RETRIES;
   const timeoutMs = rule.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const startMs = Date.now();
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    metrics.propagationAttempts.inc({ rule: rule.id });
     try {
       const response = await axios.post<{ eventId: string; status: string }>(
         targetUrl, body, {
@@ -50,6 +53,8 @@ async function fireRuleWithRetry(
           headers: { 'Content-Type': 'application/json' },
         }
       );
+
+      metrics.propagationLatencyMs.observe({ rule: rule.id }, Date.now() - startMs);
       console.log(
         `[causal] Rule ${rule.id} fired → ${rule.effect} @ ${targetUrl}` +
         (attempt > 0 ? ` (retry ${attempt})` : '') +
@@ -68,6 +73,8 @@ async function fireRuleWithRetry(
         await new Promise((resolve) => setTimeout(resolve, delayMs));
       } else {
         // All retries exhausted — send to dead-letter queue
+        metrics.propagationDeadLettered.inc({ rule: rule.id });
+        metrics.propagationLatencyMs.observe({ rule: rule.id }, Date.now() - startMs);
         console.error(
           `[causal] Rule ${rule.id} DEAD-LETTERED after ${maxRetries + 1} attempts ` +
           `(${rule.effect} @ ${targetUrl}): ${msg}`

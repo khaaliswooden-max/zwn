@@ -3,6 +3,7 @@ import { Driver } from 'neo4j-driver';
 import { generateKey, validateKey, AccessTrack } from './api-key-store';
 import { queryCache } from './query-cache';
 import { getDeadLetterQueue, clearDeadLetterQueue } from '../causal/propagation-engine';
+import { metrics } from '../lib/metrics';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -637,9 +638,17 @@ export async function startEnterpriseApi(driver: Driver): Promise<void> {
           status: 'ok',
           uptime: process.uptime(),
           cache: queryCache.stats(),
+          metrics: metrics.toJSON(),
           deadLetterQueue: { size: dlq.length, entries: dlq.slice(-10) },
           timestamp: Date.now(),
         });
+        return;
+      }
+
+      // GET /metrics — Prometheus text exposition format (no auth, scraped by monitoring)
+      if (method === 'GET' && url === '/metrics') {
+        res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+        res.end(metrics.toPrometheus());
         return;
       }
 

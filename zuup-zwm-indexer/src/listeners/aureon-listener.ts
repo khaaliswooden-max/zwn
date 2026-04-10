@@ -1,8 +1,11 @@
-import { Connection, PublicKey, Context, Logs } from '@solana/web3.js';
+import { Connection, PublicKey, Logs, Context } from '@solana/web3.js';
 import { parseAureonEvents } from '../parsers/aureon-parser';
 import { writeProcurementState } from '../writers/procurement-writer';
 import { evaluateAndPropagate } from '../causal/propagation-engine';
 import { Driver } from 'neo4j-driver';
+import { metrics } from '../lib/metrics';
+
+const PLATFORM = 'aureon';
 
 export function startAureonListener(connection: Connection, driver: Driver): void {
   const programId = new PublicKey(process.env['AUREON_PROGRAM_ID']!);
@@ -14,32 +17,33 @@ export function startAureonListener(connection: Connection, driver: Driver): voi
 
       const events = parseAureonEvents(logs.logs, programId);
       for (const event of events) {
+        const writeStart = Date.now();
         try {
           const substrateEventId = await writeProcurementState(
-            driver,
-            event,
-            ctx.slot,
-            logs.signature
+            driver, event, ctx.slot, logs.signature
           );
 
-          // Fire-and-forget: don't block the next event on causal propagation
+          metrics.eventsProcessed.inc({ platform: PLATFORM });
+          metrics.writeLatencyMs.observe({ platform: PLATFORM }, Date.now() - writeStart);
+          metrics.lastEventTimestamp.set({ platform: PLATFORM }, Date.now());
+
           evaluateAndPropagate(
-            'PROCUREMENT_STATE_CHANGE',
-            'aureon',
+            'PROCUREMENT_STATE_CHANGE', PLATFORM,
             { ...event, entityId: event.entityId },
             substrateEventId
           ).catch((pErr) => {
             const pMsg = pErr instanceof Error ? pErr.message : String(pErr);
-            console.error(`[aureon-listener] Causal propagation error: ${pMsg}`);
+            console.error(`[${PLATFORM}-listener] Causal propagation error: ${pMsg}`);
           });
         } catch (err) {
+          metrics.eventsFailed.inc({ platform: PLATFORM });
           const msg = err instanceof Error ? err.message : String(err);
-          console.error(`[aureon-listener] Error processing event: ${msg}`);
+          console.error(`[${PLATFORM}-listener] Error processing event: ${msg}`);
         }
       }
     },
     'confirmed'
   );
 
-  console.log(`[aureon-listener] Subscribed to program ${programId.toBase58()}`);
+  console.log(`[${PLATFORM}-listener] Subscribed to program ${programId.toBase58()}`);
 }
