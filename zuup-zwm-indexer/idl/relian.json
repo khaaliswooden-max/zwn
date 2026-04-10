@@ -1,0 +1,44 @@
+{
+  "version": "0.1.0",
+  "name": "relian",
+  "address": "RELxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "metadata": {
+    "name": "relian",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Relian code migration program"
+  },
+  "instructions": [],
+  "accounts": [],
+  "events": [
+    {
+      "name": "MigrationComplete",
+      "discriminator": [77, 210, 31, 155, 66, 248, 102, 19],
+      "fields": [
+        { "name": "project_id", "type": "string", "index": false },
+        { "name": "semantic_preservation", "type": "f64", "index": false },
+        { "name": "test_coverage", "type": "f64", "index": false },
+        { "name": "loc_migrated", "type": "u64", "index": false },
+        { "name": "artifact_hash", "type": { "array": ["u8", 32] }, "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "MigrationComplete",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "project_id", "type": "string" },
+          { "name": "semantic_preservation", "type": "f64" },
+          { "name": "test_coverage", "type": "f64" },
+          { "name": "loc_migrated", "type": "u64" },
+          { "name": "artifact_hash", "type": { "array": ["u8", 32] } },
+          { "name": "timestamp", "type": "i64" }
+        ]
+      }
+    }
+  ],
+  "errors": []
+}

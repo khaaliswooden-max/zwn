@@ -77,9 +77,10 @@ export async function evaluateAndWriteScaleMetric(
 
   try {
     await session.executeWrite(async (tx) => {
-      // 1. Create ScaleMetric node
+      // Main batched write: metric + supersedes + event + emitted (5 round-trips -> 2)
       await tx.run(
-        `CREATE (m:ScaleMetric {
+        `// 1. Create ScaleMetric node (is_current = true)
+         CREATE (m:ScaleMetric {
            id: $metricId,
            platform: $platform,
            omega_rsf: $omegaRsf,
@@ -89,8 +90,30 @@ export async function evaluateAndWriteScaleMetric(
            market_footprint: $marketFootprint,
            jurisdictional_coverage: $jurisdictionalCoverage,
            assessment_status: $assessmentStatus,
+           timestamp: $now,
+           is_current: true
+         })
+         WITH m
+         // 2. Wire SUPERSEDES to previous metric for same platform
+         OPTIONAL MATCH (prev:ScaleMetric {platform: $platform, is_current: true})
+           WHERE prev.id <> m.id
+         SET prev.is_current = false
+         WITH m, prev
+         FOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END |
+           CREATE (m)-[:SUPERSEDES {at: $now}]->(prev)
+         )
+         WITH m
+         // 4-5. Create SubstrateEvent + EMITTED
+         CREATE (e:SubstrateEvent {
+           id: $eventId,
+           type: 'SCALE_METRIC_UPDATE',
+           source: 'economics',
+           entity_id: $platform,
+           payload_hash: $payloadHash,
+           solana_slot: 0,
            timestamp: $now
-         })`,
+         })
+         CREATE (m)-[:EMITTED]->(e)`,
         {
           metricId,
           platform,
@@ -101,54 +124,20 @@ export async function evaluateAndWriteScaleMetric(
           marketFootprint,
           jurisdictionalCoverage,
           assessmentStatus,
+          payloadHash: `scale:${platform}:rsf=${omegaRsf}:max=${omegaMax}:${assessmentStatus}`,
+          eventId,
           now,
         },
       );
 
-      // 2. Wire SUPERSEDES to previous metric for the same platform
-      await tx.run(
-        `MATCH (prev:ScaleMetric {platform: $platform})
-         WHERE prev.id <> $metricId
-         WITH prev ORDER BY prev.timestamp DESC LIMIT 1
-         MATCH (m:ScaleMetric {id: $metricId})
-         CREATE (m)-[:SUPERSEDES {at: $now}]->(prev)`,
-        { platform, metricId, now },
-      );
-
-      // 3. Wire ASSESSED_BY to active objectives
+      // 3. Wire ASSESSED_BY to active objectives (separate: multi-match)
       await tx.run(
         `MATCH (o:ObjectiveState)
-         WHERE o.status IN ['ACTIVE', 'APPROVED'] AND NOT (o)-[:SUPERSEDES]->()
+         WHERE o.status IN ['ACTIVE', 'APPROVED'] AND o.is_current = true
          WITH o
          MATCH (m:ScaleMetric {id: $metricId})
          CREATE (m)-[:ASSESSED_BY {at: $now}]->(o)`,
         { metricId, now },
-      );
-
-      // 4. Create SubstrateEvent
-      await tx.run(
-        `CREATE (e:SubstrateEvent {
-           id: $eventId,
-           type: 'SCALE_METRIC_UPDATE',
-           source: 'economics',
-           entity_id: $platform,
-           payload_hash: $payloadHash,
-           solana_slot: 0,
-           timestamp: $now
-         })`,
-        {
-          eventId,
-          platform,
-          payloadHash: `scale:${platform}:rsf=${omegaRsf}:max=${omegaMax}:${assessmentStatus}`,
-          now,
-        },
-      );
-
-      // 5. Wire EMITTED edge
-      await tx.run(
-        `MATCH (m:ScaleMetric {id: $metricId}), (e:SubstrateEvent {id: $eventId})
-         CREATE (m)-[:EMITTED]->(e)`,
-        { metricId, eventId },
       );
     });
 

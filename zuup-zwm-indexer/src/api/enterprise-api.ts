@@ -1,6 +1,9 @@
 import http, { IncomingMessage, ServerResponse } from 'http';
 import { Driver } from 'neo4j-driver';
 import { generateKey, validateKey, AccessTrack } from './api-key-store';
+import { queryCache } from './query-cache';
+import { getDeadLetterQueue, clearDeadLetterQueue } from '../causal/propagation-engine';
+import { metrics } from '../lib/metrics';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -81,7 +84,7 @@ async function handleWorldState(
 
     const stateResult = await session.run(
       `MATCH (a:WorldActor {id: $entityId})-[:HAS_STATE]->(state)
-       WHERE NOT (state)-[:SUPERSEDES]->()
+       WHERE state.is_current = true
        RETURN labels(state)[0] AS substrate, state`,
       { entityId }
     );
@@ -116,7 +119,7 @@ async function handleCompositeRisk(
   try {
     const result = await session.run(
       `MATCH (a:WorldActor {id: $entityId})-[:HAS_STATE]->(state)
-       WHERE NOT (state)-[:SUPERSEDES]->()
+       WHERE state.is_current = true
        RETURN labels(state)[0] AS substrate, state`,
       { entityId }
     );
@@ -163,7 +166,7 @@ async function handleEntitiesByCompliance(
     const result = await session.run(
       `MATCH (a:WorldActor)-[:HAS_STATE]->(cs:ComplianceState)
        WHERE cs.status = $status ${domainFilter}
-       AND NOT (cs)-[:SUPERSEDES]->()
+       AND cs.is_current = true
        RETURN DISTINCT a`,
       { status, domain }
     );
@@ -625,6 +628,34 @@ export async function startEnterpriseApi(driver: Driver): Promise<void> {
       if (method === 'GET' && (url === '/' || url === '/build')) {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(BUILD_PAGE_HTML);
+        return;
+      }
+
+      // GET /health — public health check (no auth)
+      if (method === 'GET' && url === '/health') {
+        const dlq = getDeadLetterQueue();
+        sendJson(res, 200, {
+          status: 'ok',
+          uptime: process.uptime(),
+          cache: queryCache.stats(),
+          metrics: metrics.toJSON(),
+          deadLetterQueue: { size: dlq.length, entries: dlq.slice(-10) },
+          timestamp: Date.now(),
+        });
+        return;
+      }
+
+      // GET /metrics — Prometheus text exposition format (no auth, scraped by monitoring)
+      if (method === 'GET' && url === '/metrics') {
+        res.writeHead(200, { 'Content-Type': 'text/plain; version=0.0.4; charset=utf-8' });
+        res.end(metrics.toPrometheus());
+        return;
+      }
+
+      // POST /enterprise/clear-dead-letters — clear dead-letter queue (no auth, ops tool)
+      if (method === 'POST' && url === '/enterprise/clear-dead-letters') {
+        const cleared = clearDeadLetterQueue();
+        sendJson(res, 200, { cleared, status: 'ok' });
         return;
       }
 

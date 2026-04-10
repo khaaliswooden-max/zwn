@@ -11,6 +11,8 @@ const CONSTRAINTS: string[] = [
   'CREATE CONSTRAINT computestate_id IF NOT EXISTS FOR (n:ComputeState) REQUIRE n.id IS UNIQUE',
   'CREATE CONSTRAINT substratevent_id IF NOT EXISTS FOR (n:SubstrateEvent) REQUIRE n.id IS UNIQUE',
   'CREATE CONSTRAINT attestation_id IF NOT EXISTS FOR (n:Attestation) REQUIRE n.id IS UNIQUE',
+  'CREATE CONSTRAINT reasoningstate_id IF NOT EXISTS FOR (n:ReasoningState) REQUIRE n.id IS UNIQUE',
+  'CREATE CONSTRAINT settlementrecord_id IF NOT EXISTS FOR (n:SettlementRecord) REQUIRE n.id IS UNIQUE',
   // --- Governance + Economics constraints ---
   'CREATE CONSTRAINT objectivestate_id IF NOT EXISTS FOR (n:ObjectiveState) REQUIRE n.id IS UNIQUE',
   'CREATE CONSTRAINT treatyattestation_id IF NOT EXISTS FOR (n:TreatyAttestation) REQUIRE n.id IS UNIQUE',
@@ -29,6 +31,17 @@ const INDEXES: string[] = [
   'CREATE INDEX treatyattestation_jurisdiction IF NOT EXISTS FOR (n:TreatyAttestation) ON (n.jurisdiction_code, n.effective_date)',
   'CREATE INDEX feerecord_entity_ts IF NOT EXISTS FOR (n:FeeRecord) ON (n.entity_id, n.timestamp)',
   'CREATE INDEX scalemetric_platform_ts IF NOT EXISTS FOR (n:ScaleMetric) ON (n.platform, n.timestamp)',
+  // --- is_current fast-path indexes (O(1) current-state lookup, replaces SUPERSEDES scan) ---
+  'CREATE INDEX compliancestate_current IF NOT EXISTS FOR (n:ComplianceState) ON (n.entity_id, n.is_current)',
+  'CREATE INDEX procurementstate_current IF NOT EXISTS FOR (n:ProcurementState) ON (n.entity_id, n.is_current)',
+  'CREATE INDEX biologicalstate_current IF NOT EXISTS FOR (n:BiologicalState) ON (n.entity_id, n.is_current)',
+  'CREATE INDEX historicalrecon_current IF NOT EXISTS FOR (n:HistoricalRecon) ON (n.entity_id, n.is_current)',
+  'CREATE INDEX migrationstate_current IF NOT EXISTS FOR (n:MigrationState) ON (n.project_id, n.is_current)',
+  'CREATE INDEX computestate_current IF NOT EXISTS FOR (n:ComputeState) ON (n.entity_id, n.is_current)',
+  'CREATE INDEX objectivestate_current IF NOT EXISTS FOR (n:ObjectiveState) ON (n.objective_type, n.is_current)',
+  'CREATE INDEX scalemetric_current IF NOT EXISTS FOR (n:ScaleMetric) ON (n.platform, n.is_current)',
+  'CREATE INDEX reasoningstate_current IF NOT EXISTS FOR (n:ReasoningState) ON (n.request_id, n.is_current)',
+  'CREATE INDEX settlementrecord_entity_ts IF NOT EXISTS FOR (n:SettlementRecord) ON (n.counterparty_id, n.timestamp)',
 ];
 
 export async function initDb(driver: Driver): Promise<void> {

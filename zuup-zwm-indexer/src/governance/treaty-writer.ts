@@ -8,9 +8,11 @@ import { TreatyAttestationPayload } from './types';
  *   1. Merge WorldActor for the bilateral partner
  *   2. Create TreatyAttestation node
  *   3. Wire EXPANDS_SCOPE to previous treaty for the same jurisdiction (if any)
- *   4. Wire AUTHORIZED_BY from any matching active ObjectiveState nodes
- *   5. Create SubstrateEvent
- *   6. Wire EMITTED edge
+ *   4. Wire AUTHORIZED_BY from active JURISDICTIONAL_EXPANSION objectives
+ *   5. Create SubstrateEvent + EMITTED edge
+ *
+ * Batched into minimal Cypher statements (6 round-trips -> 2).
+ * The AUTHORIZED_BY step requires a separate query due to multi-match semantics.
  */
 export async function writeTreatyAttestation(
   driver: Driver,
@@ -25,17 +27,15 @@ export async function writeTreatyAttestation(
 
   try {
     await session.executeWrite(async (tx) => {
-      // 1. Merge WorldActor for bilateral partner
+      // Main batched write: actor + treaty + expands_scope + event + emitted
       await tx.run(
-        `MERGE (a:WorldActor {id: $partnerId})
-         ON CREATE SET a.created_at = $now
-         SET a.last_seen = $now`,
-        { partnerId: payload.bilateralPartner, now },
-      );
-
-      // 2. Create TreatyAttestation
-      await tx.run(
-        `CREATE (t:TreatyAttestation {
+        `// 1. Merge WorldActor for bilateral partner
+         MERGE (a:WorldActor {id: $partnerId})
+           ON CREATE SET a.created_at = $now
+           SET a.last_seen = $now
+         WITH a
+         // 2. Create TreatyAttestation
+         CREATE (t:TreatyAttestation {
            id: $treatyId,
            jurisdiction_code: $jurisdictionCode,
            jurisdiction_name: $jurisdictionName,
@@ -48,9 +48,30 @@ export async function writeTreatyAttestation(
            civium_verification_id: $civiumVerificationId,
            timestamp: $now,
            solana_slot: $solanaSlot
-         })`,
+         })
+         WITH t
+         // 3. Wire EXPANDS_SCOPE to previous treaty for same jurisdiction (if any)
+         OPTIONAL MATCH (prev:TreatyAttestation {jurisdiction_code: $jurisdictionCode})
+           WHERE prev.id <> t.id
+         WITH t, prev ORDER BY prev.timestamp DESC LIMIT 1
+         FOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END |
+           CREATE (t)-[:EXPANDS_SCOPE {at: $now}]->(prev)
+         )
+         WITH t
+         // 5-6. Create SubstrateEvent + EMITTED
+         CREATE (e:SubstrateEvent {
+           id: $eventId,
+           type: 'TREATY_ATTESTATION_NEW',
+           source: 'civium',
+           entity_id: $bilateralPartner,
+           payload_hash: $payloadHash,
+           solana_slot: $solanaSlot,
+           timestamp: $now
+         })
+         CREATE (t)-[:EMITTED]->(e)`,
         {
           treatyId,
+          partnerId: payload.bilateralPartner,
           jurisdictionCode: payload.jurisdictionCode,
           jurisdictionName: payload.jurisdictionName,
           treatyType: payload.treatyType,
@@ -60,58 +81,24 @@ export async function writeTreatyAttestation(
           effectiveDate: payload.effectiveDate,
           expiryDate: payload.expiryDate,
           civiumVerificationId: payload.civiumVerificationId,
-          now,
+          payloadHash: `treaty:${payload.jurisdictionCode}:${payload.treatyType}:${payload.attestationHash}`,
+          eventId,
           solanaSlot,
+          now,
         },
       );
 
-      // 3. Wire EXPANDS_SCOPE to previous treaty for the same jurisdiction (if any)
-      await tx.run(
-        `MATCH (prev:TreatyAttestation {jurisdiction_code: $jurisdictionCode})
-         WHERE prev.id <> $treatyId
-         WITH prev ORDER BY prev.timestamp DESC LIMIT 1
-         MATCH (t:TreatyAttestation {id: $treatyId})
-         CREATE (t)-[:EXPANDS_SCOPE {at: $now}]->(prev)`,
-        { jurisdictionCode: payload.jurisdictionCode, treatyId, now },
-      );
-
-      // 4. Wire AUTHORIZED_BY from active objectives that require jurisdictional expansion
+      // 4. Wire AUTHORIZED_BY from active JURISDICTIONAL_EXPANSION objectives
+      // Separate query: multi-match across independent ObjectiveState nodes
       await tx.run(
         `MATCH (o:ObjectiveState)
          WHERE o.status IN ['ACTIVE', 'APPROVED']
            AND o.objective_type = 'JURISDICTIONAL_EXPANSION'
-           AND NOT (o)-[:SUPERSEDES]->()
+           AND o.is_current = true
          WITH o
          MATCH (t:TreatyAttestation {id: $treatyId})
          CREATE (o)-[:AUTHORIZED_BY {scope: $jurisdictionCode}]->(t)`,
         { treatyId, jurisdictionCode: payload.jurisdictionCode },
-      );
-
-      // 5. Create SubstrateEvent
-      await tx.run(
-        `CREATE (e:SubstrateEvent {
-           id: $eventId,
-           type: 'TREATY_ATTESTATION_NEW',
-           source: 'civium',
-           entity_id: $bilateralPartner,
-           payload_hash: $payloadHash,
-           solana_slot: $solanaSlot,
-           timestamp: $now
-         })`,
-        {
-          eventId,
-          bilateralPartner: payload.bilateralPartner,
-          payloadHash: `treaty:${payload.jurisdictionCode}:${payload.treatyType}:${payload.attestationHash}`,
-          solanaSlot,
-          now,
-        },
-      );
-
-      // 6. Wire EMITTED edge
-      await tx.run(
-        `MATCH (t:TreatyAttestation {id: $treatyId}), (e:SubstrateEvent {id: $eventId})
-         CREATE (t)-[:EMITTED]->(e)`,
-        { treatyId, eventId },
       );
     });
 

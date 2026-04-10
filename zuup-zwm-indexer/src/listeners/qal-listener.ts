@@ -1,25 +1,25 @@
 import { Connection, PublicKey, Logs, Context } from '@solana/web3.js';
-import { parseAureonEvents } from '../parsers/aureon-parser';
-import { writeProcurementState } from '../writers/procurement-writer';
+import { parseQalEvents } from '../parsers/qal-parser';
+import { writeHistoricalRecon } from '../writers/historical-writer';
 import { evaluateAndPropagate } from '../causal/propagation-engine';
 import { Driver } from 'neo4j-driver';
 import { metrics } from '../lib/metrics';
 
-const PLATFORM = 'aureon';
+const PLATFORM = 'qal';
 
-export function startAureonListener(connection: Connection, driver: Driver): void {
-  const programId = new PublicKey(process.env['AUREON_PROGRAM_ID']!);
+export function startQalListener(connection: Connection, driver: Driver): void {
+  const programId = new PublicKey(process.env['QAL_PROGRAM_ID']!);
 
   connection.onLogs(
     programId,
     async (logs: Logs, ctx: Context) => {
       if (logs.err) return;
 
-      const events = parseAureonEvents(logs.logs, programId);
+      const events = parseQalEvents(logs.logs, programId);
       for (const event of events) {
         const writeStart = Date.now();
         try {
-          const substrateEventId = await writeProcurementState(
+          const substrateEventId = await writeHistoricalRecon(
             driver, event, ctx.slot, logs.signature
           );
 
@@ -28,7 +28,7 @@ export function startAureonListener(connection: Connection, driver: Driver): voi
           metrics.lastEventTimestamp.set({ platform: PLATFORM }, Date.now());
 
           evaluateAndPropagate(
-            'PROCUREMENT_STATE_CHANGE', PLATFORM,
+            'RECONSTRUCTION_COMPLETE', PLATFORM,
             { ...event, entityId: event.entityId },
             substrateEventId
           ).catch((pErr) => {

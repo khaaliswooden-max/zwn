@@ -1,0 +1,44 @@
+{
+  "version": "0.1.0",
+  "name": "zuup_hq",
+  "address": "ZHQxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "metadata": {
+    "name": "zuup_hq",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "ZuupHQ attestation trust layer"
+  },
+  "instructions": [],
+  "accounts": [],
+  "events": [
+    {
+      "name": "AttestationCreated",
+      "discriminator": [44, 121, 88, 200, 155, 67, 33, 99],
+      "fields": [
+        { "name": "attestation_id", "type": "string", "index": false },
+        { "name": "sha256", "type": { "array": ["u8", 32] }, "index": false },
+        { "name": "pda_address", "type": "string", "index": false },
+        { "name": "score", "type": "u8", "index": false },
+        { "name": "attestation_type", "type": "string", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "AttestationCreated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "attestation_id", "type": "string" },
+          { "name": "sha256", "type": { "array": ["u8", 32] } },
+          { "name": "pda_address", "type": "string" },
+          { "name": "score", "type": "u8" },
+          { "name": "attestation_type", "type": "string" },
+          { "name": "timestamp", "type": "i64" }
+        ]
+      }
+    }
+  ],
+  "errors": []
+}

@@ -5,6 +5,9 @@
  * compliance-writer, procurement-writer, and the validation MATCH query
  * without a real Neo4j instance.
  *
+ * Updated for Phase 1 optimization: handles batched Cypher queries where
+ * writers send a single compound statement instead of 6 sequential tx.run() calls.
+ *
  * Node identity: each node is keyed by its `id` property (a UUID or entityId).
  * Relationships are stored as a flat array with startId / endId references.
  */
@@ -79,19 +82,20 @@ function routeQuery(
     return { records: [] };
   }
 
-  // MERGE WorldActor
-  if (q.startsWith('MERGE (a:WorldActor')) {
+  // ── Batched compliance write (single compound Cypher) ──────────────────────
+  // Detects the batched query from compliance-writer.ts that contains:
+  // MERGE WorldActor + CREATE ComplianceState + SUPERSEDES + HAS_STATE + SubstrateEvent + EMITTED
+  if (q.includes('ComplianceState') && q.includes('SubstrateEvent') && q.includes('MERGE')) {
     const entityId = params['entityId'] as string;
     const now = params['now'] as number;
-    graph.mergeNode('WorldActor', entityId, { created_at: now }, { last_seen: now });
-    return { records: [] };
-  }
 
-  // CREATE ComplianceState
-  if (q.startsWith('CREATE (s:ComplianceState')) {
+    // 1. Merge WorldActor
+    graph.mergeNode('WorldActor', entityId, { created_at: now }, { last_seen: now });
+
+    // 2. Create ComplianceState with is_current
     graph.createNode('ComplianceState', {
       id: params['stateId'],
-      entity_id: params['entityId'],
+      entity_id: entityId,
       status: params['status'],
       score: params['score'],
       domain: params['domain'],
@@ -99,59 +103,87 @@ function routeQuery(
       timestamp: params['timestamp'],
       solana_slot: params['solanaSlot'],
       tx_signature: params['txSignature'],
+      is_current: true,
     });
+
+    // 3. Mark previous current state as superseded (no-op on first write)
+    // In green-path test there's no prior state, so this is a no-op
+
+    // 4. Wire HAS_STATE
+    graph.createRel('HAS_STATE', entityId, params['stateId'] as string, {
+      since: params['timestamp'],
+      source: 'civium',
+    });
+
+    // 5-6. Create SubstrateEvent + EMITTED
+    graph.createNode('SubstrateEvent', {
+      id: params['eventId'],
+      type: 'COMPLIANCE_STATE_CHANGE',
+      source: 'civium',
+      entity_id: entityId,
+      payload_hash: params['payloadHash'],
+      solana_slot: params['solanaSlot'],
+      timestamp: params['timestamp'],
+    });
+    graph.createRel('EMITTED', params['stateId'] as string, params['eventId'] as string);
+
     return { records: [] };
   }
 
-  // CREATE ProcurementState
-  if (q.startsWith('CREATE (s:ProcurementState')) {
+  // ── Batched procurement write (single compound Cypher) ─────────────────────
+  if (q.includes('ProcurementState') && q.includes('SubstrateEvent') && q.includes('MERGE')) {
+    const entityId = params['entityId'] as string;
+    const now = params['now'] as number;
+
+    // 1. Merge WorldActor
+    graph.mergeNode('WorldActor', entityId, { created_at: now }, { last_seen: now });
+
+    // 2. Create ProcurementState with is_current
     graph.createNode('ProcurementState', {
       id: params['stateId'],
-      entity_id: params['entityId'],
+      entity_id: entityId,
       fitiq: params['fitiq'],
       upd: params['upd'],
       opportunity_count: params['opportunityCount'],
       timestamp: params['timestamp'],
       solana_slot: params['solanaSlot'],
       tx_signature: params['txSignature'],
+      is_current: true,
     });
-    return { records: [] };
-  }
 
-  // CREATE SubstrateEvent (type and source are embedded string literals)
-  if (q.startsWith('CREATE (e:SubstrateEvent')) {
-    const typeMatch = q.match(/type:\s*'([^']+)'/);
-    const sourceMatch = q.match(/source:\s*'([^']+)'/);
+    // 3-4. SUPERSEDES (no-op on first write) + HAS_STATE
+    graph.createRel('HAS_STATE', entityId, params['stateId'] as string, {
+      since: params['timestamp'],
+      source: 'aureon',
+    });
+
+    // 5-6. Create SubstrateEvent + EMITTED
     graph.createNode('SubstrateEvent', {
       id: params['eventId'],
-      type: typeMatch?.[1] ?? 'UNKNOWN',
-      source: sourceMatch?.[1] ?? 'unknown',
-      entity_id: params['entityId'],
+      type: 'PROCUREMENT_STATE_CHANGE',
+      source: 'aureon',
+      entity_id: entityId,
       payload_hash: params['payloadHash'],
       solana_slot: params['solanaSlot'],
       timestamp: params['timestamp'],
     });
+    graph.createRel('EMITTED', params['stateId'] as string, params['eventId'] as string);
+
+    return { records: [] };
+  }
+
+  // ── Legacy individual queries (kept for backward compatibility) ─────────────
+
+  // MERGE WorldActor (standalone)
+  if (q.includes('MERGE (a:WorldActor') && !q.includes('CREATE')) {
+    const entityId = (params['entityId'] ?? params['proposerId'] ?? params['partnerId']) as string;
+    const now = params['now'] as number;
+    graph.mergeNode('WorldActor', entityId, { created_at: now }, { last_seen: now });
     return { records: [] };
   }
 
   // SUPERSEDES — no-op (no prior state exists in green-path run)
-  if (q.includes('SUPERSEDES')) {
-    return { records: [] };
-  }
-
-  // CREATE HAS_STATE (World Actor → state node)
-  if (q.includes('CREATE (a)-[:HAS_STATE')) {
-    const sourceMatch = q.match(/source:\s*'([^']+)'/);
-    graph.createRel('HAS_STATE', params['entityId'] as string, params['stateId'] as string, {
-      since: params['timestamp'],
-      source: sourceMatch?.[1] ?? 'unknown',
-    });
-    return { records: [] };
-  }
-
-  // CREATE EMITTED (state → SubstrateEvent)
-  if (q.includes('CREATE (s)-[:EMITTED]->(e)')) {
-    graph.createRel('EMITTED', params['stateId'] as string, params['eventId'] as string);
+  if (q.includes('SUPERSEDES') && !q.includes('SubstrateEvent')) {
     return { records: [] };
   }
 

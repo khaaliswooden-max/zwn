@@ -1,6 +1,7 @@
 import { ApolloServer } from '@apollo/server';
 import { startStandaloneServer } from '@apollo/server/standalone';
 import { Driver } from 'neo4j-driver';
+import { queryCache } from './query-cache';
 
 const typeDefs = `#graphql
   type WorldActor {
@@ -98,7 +99,6 @@ const typeDefs = `#graphql
   }
 
   # Full current state across all substrates — one node per substrate at most
-  # (the current node, i.e. the one with no outgoing SUPERSEDES edge)
   type FullWorldState {
     actor: WorldActor
     compliance: ComplianceState
@@ -170,6 +170,21 @@ const typeDefs = `#graphql
     timestamp: Float
   }
 
+  # --- Cross-substrate correlation ---
+  type SubstrateCoverage {
+    entityId: String!
+    substrates: [String!]!
+    substrateCount: Int!
+    lastUpdated: Float
+  }
+
+  type CacheStats {
+    hits: Int!
+    misses: Int!
+    size: Int!
+    hitRate: String!
+  }
+
   type Query {
     worldState(entityId: String!): WorldActor
     entitiesByCompliance(status: String!, domain: String): [WorldActor]
@@ -183,13 +198,22 @@ const typeDefs = `#graphql
     # Economics queries
     feeHistory(entityId: String!, limit: Int): [FeeRecord]
     scaleAssessment(platform: String!): ScaleMetric
+    # Cross-substrate analysis
+    crossSubstrateCoverage(minSubstrates: Int!): [SubstrateCoverage]
+    # Observability
+    cacheStats: CacheStats
   }
 `;
 
 function buildResolvers(driver: Driver) {
   return {
     Query: {
+      // ── Cached: worldState ──────────────────────────────────────────────
       async worldState(_: unknown, { entityId }: { entityId: string }) {
+        const cacheKey = `worldState:${entityId}`;
+        const cached = queryCache.get(cacheKey);
+        if (cached !== undefined) return cached;
+
         const session = driver.session();
         try {
           const result = await session.run(
@@ -198,7 +222,9 @@ function buildResolvers(driver: Driver) {
             { entityId }
           );
           if (result.records.length === 0) return null;
-          return result.records[0].get('a').properties;
+          const value = result.records[0].get('a').properties;
+          queryCache.set(cacheKey, value);
+          return value;
         } finally {
           await session.close();
         }
@@ -214,7 +240,7 @@ function buildResolvers(driver: Driver) {
           const result = await session.run(
             `MATCH (a:WorldActor)-[:HAS_STATE]->(cs:ComplianceState)
              WHERE cs.status = $status ${domainFilter}
-             AND NOT (cs)-[:SUPERSEDES]->()
+             AND cs.is_current = true
              RETURN DISTINCT a`,
             { status, domain }
           );
@@ -242,12 +268,17 @@ function buildResolvers(driver: Driver) {
         }
       },
 
+      // ── Cached: compositeRisk ───────────────────────────────────────────
       async compositeRisk(_: unknown, { entityId }: { entityId: string }) {
+        const cacheKey = `compositeRisk:${entityId}`;
+        const cached = queryCache.get(cacheKey);
+        if (cached !== undefined) return cached;
+
         const session = driver.session();
         try {
           const result = await session.run(
             `MATCH (a:WorldActor {id: $entityId})-[:HAS_STATE]->(state)
-             WHERE NOT (state)-[:SUPERSEDES]->()
+             WHERE state.is_current = true
              RETURN labels(state)[0] AS substrate, state`,
             { entityId }
           );
@@ -277,16 +308,21 @@ function buildResolvers(driver: Driver) {
           }
 
           risk['riskLevel'] = riskScore >= 5 ? 'CRITICAL' : riskScore >= 3 ? 'HIGH' : riskScore >= 1 ? 'MEDIUM' : 'LOW';
+          queryCache.set(cacheKey, risk, 30_000); // 30s TTL for risk (changes infrequently)
           return risk;
         } finally {
           await session.close();
         }
       },
 
+      // ── Cached: fullWorldState ──────────────────────────────────────────
       async fullWorldState(_: unknown, { entityId }: { entityId: string }) {
+        const cacheKey = `fullWorldState:${entityId}`;
+        const cached = queryCache.get(cacheKey);
+        if (cached !== undefined) return cached;
+
         const session = driver.session();
         try {
-          // Fetch the actor node
           const actorResult = await session.run(
             `MATCH (a:WorldActor {id: $entityId}) RETURN a`,
             { entityId }
@@ -294,10 +330,9 @@ function buildResolvers(driver: Driver) {
           if (actorResult.records.length === 0) return null;
           const actor = actorResult.records[0].get('a').properties as Record<string, unknown>;
 
-          // Fetch all current state nodes (no outgoing SUPERSEDES edge = current)
           const stateResult = await session.run(
             `MATCH (a:WorldActor {id: $entityId})-[:HAS_STATE]->(state)
-             WHERE NOT (state)-[:SUPERSEDES]->()
+             WHERE state.is_current = true
              RETURN labels(state)[0] AS substrate, state`,
             { entityId }
           );
@@ -315,6 +350,7 @@ function buildResolvers(driver: Driver) {
               case 'ComputeState':     result['compute']     = props; break;
             }
           }
+          queryCache.set(cacheKey, result);
           return result;
         } finally {
           await session.close();
@@ -323,17 +359,24 @@ function buildResolvers(driver: Driver) {
 
       // --- Governance resolvers ---
 
+      // ── Cached: activeObjectives ────────────────────────────────────────
       async activeObjectives() {
+        const cacheKey = 'activeObjectives';
+        const cached = queryCache.get(cacheKey);
+        if (cached !== undefined) return cached;
+
         const session = driver.session();
         try {
           const result = await session.run(
             `MATCH (o:ObjectiveState)
              WHERE o.status IN ['ACTIVE', 'APPROVED']
-               AND NOT (o)-[:SUPERSEDES]->()
+               AND o.is_current = true
              RETURN o
              ORDER BY o.timestamp DESC`
           );
-          return result.records.map((r) => r.get('o').properties);
+          const value = result.records.map((r) => r.get('o').properties);
+          queryCache.set(cacheKey, value, 30_000); // 30s TTL
+          return value;
         } finally {
           await session.close();
         }
@@ -408,7 +451,7 @@ function buildResolvers(driver: Driver) {
         try {
           const result = await session.run(
             `MATCH (m:ScaleMetric {platform: $platform})
-             WHERE NOT (m)-[:SUPERSEDES]->()
+             WHERE m.is_current = true
              RETURN m
              LIMIT 1`,
             { platform }
@@ -418,6 +461,38 @@ function buildResolvers(driver: Driver) {
         } finally {
           await session.close();
         }
+      },
+
+      // --- Cross-substrate analysis ---
+
+      async crossSubstrateCoverage(_: unknown, { minSubstrates }: { minSubstrates: number }) {
+        const session = driver.session();
+        try {
+          const result = await session.run(
+            `MATCH (a:WorldActor)-[:HAS_STATE]->(state)
+             WHERE state.is_current = true
+             WITH a, collect(DISTINCT labels(state)[0]) AS substrates,
+                  max(state.timestamp) AS lastUpdated
+             WHERE size(substrates) >= $minSubstrates
+             RETURN a.id AS entityId, substrates, size(substrates) AS substrateCount, lastUpdated
+             ORDER BY substrateCount DESC`,
+            { minSubstrates }
+          );
+          return result.records.map((r) => ({
+            entityId: r.get('entityId'),
+            substrates: r.get('substrates'),
+            substrateCount: Number(r.get('substrateCount')),
+            lastUpdated: r.get('lastUpdated') ? Number(r.get('lastUpdated')) : null,
+          }));
+        } finally {
+          await session.close();
+        }
+      },
+
+      // --- Observability ---
+
+      cacheStats() {
+        return queryCache.stats();
       },
     },
   };

@@ -1,25 +1,25 @@
 import { Connection, PublicKey, Logs, Context } from '@solana/web3.js';
-import { parseAureonEvents } from '../parsers/aureon-parser';
-import { writeProcurementState } from '../writers/procurement-writer';
+import { parseZusdcEvents } from '../parsers/zusdc-parser';
+import { writeSettlementRecord } from '../writers/settlement-writer';
 import { evaluateAndPropagate } from '../causal/propagation-engine';
 import { Driver } from 'neo4j-driver';
 import { metrics } from '../lib/metrics';
 
-const PLATFORM = 'aureon';
+const PLATFORM = 'zusdc';
 
-export function startAureonListener(connection: Connection, driver: Driver): void {
-  const programId = new PublicKey(process.env['AUREON_PROGRAM_ID']!);
+export function startZusdcListener(connection: Connection, driver: Driver): void {
+  const programId = new PublicKey(process.env['ZUSDC_PROGRAM_ID']!);
 
   connection.onLogs(
     programId,
     async (logs: Logs, ctx: Context) => {
       if (logs.err) return;
 
-      const events = parseAureonEvents(logs.logs, programId);
+      const events = parseZusdcEvents(logs.logs, programId);
       for (const event of events) {
         const writeStart = Date.now();
         try {
-          const substrateEventId = await writeProcurementState(
+          const substrateEventId = await writeSettlementRecord(
             driver, event, ctx.slot, logs.signature
           );
 
@@ -28,8 +28,8 @@ export function startAureonListener(connection: Connection, driver: Driver): voi
           metrics.lastEventTimestamp.set({ platform: PLATFORM }, Date.now());
 
           evaluateAndPropagate(
-            'PROCUREMENT_STATE_CHANGE', PLATFORM,
-            { ...event, entityId: event.entityId },
+            'SETTLEMENT_EVENT', PLATFORM,
+            { ...event, entityId: event.counterpartyId, amount: event.amountUsdc },
             substrateEventId
           ).catch((pErr) => {
             const pMsg = pErr instanceof Error ? pErr.message : String(pErr);

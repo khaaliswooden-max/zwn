@@ -1,0 +1,48 @@
+{
+  "version": "0.1.0",
+  "name": "symbion",
+  "address": "SYMBxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "metadata": {
+    "name": "symbion",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "Symbion biological monitoring program"
+  },
+  "instructions": [],
+  "accounts": [],
+  "events": [
+    {
+      "name": "BiologicalReading",
+      "discriminator": [132, 88, 201, 44, 99, 176, 55, 17],
+      "fields": [
+        { "name": "subject_id", "type": "string", "index": false },
+        { "name": "serotonin_nm", "type": "f64", "index": false },
+        { "name": "dopamine_nm", "type": "f64", "index": false },
+        { "name": "cortisol_nm", "type": "f64", "index": false },
+        { "name": "gaba_nm", "type": "f64", "index": false },
+        { "name": "anomaly_flag", "type": "bool", "index": false },
+        { "name": "severity", "type": "string", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "BiologicalReading",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "subject_id", "type": "string" },
+          { "name": "serotonin_nm", "type": "f64" },
+          { "name": "dopamine_nm", "type": "f64" },
+          { "name": "cortisol_nm", "type": "f64" },
+          { "name": "gaba_nm", "type": "f64" },
+          { "name": "anomaly_flag", "type": "bool" },
+          { "name": "severity", "type": "string" },
+          { "name": "timestamp", "type": "i64" }
+        ]
+      }
+    }
+  ],
+  "errors": []
+}

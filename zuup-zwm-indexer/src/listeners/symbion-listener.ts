@@ -1,25 +1,25 @@
 import { Connection, PublicKey, Logs, Context } from '@solana/web3.js';
-import { parseAureonEvents } from '../parsers/aureon-parser';
-import { writeProcurementState } from '../writers/procurement-writer';
+import { parseSymbionEvents } from '../parsers/symbion-parser';
+import { writeBiologicalState } from '../writers/biological-writer';
 import { evaluateAndPropagate } from '../causal/propagation-engine';
 import { Driver } from 'neo4j-driver';
 import { metrics } from '../lib/metrics';
 
-const PLATFORM = 'aureon';
+const PLATFORM = 'symbion';
 
-export function startAureonListener(connection: Connection, driver: Driver): void {
-  const programId = new PublicKey(process.env['AUREON_PROGRAM_ID']!);
+export function startSymbionListener(connection: Connection, driver: Driver): void {
+  const programId = new PublicKey(process.env['SYMBION_PROGRAM_ID']!);
 
   connection.onLogs(
     programId,
     async (logs: Logs, ctx: Context) => {
       if (logs.err) return;
 
-      const events = parseAureonEvents(logs.logs, programId);
+      const events = parseSymbionEvents(logs.logs, programId);
       for (const event of events) {
         const writeStart = Date.now();
         try {
-          const substrateEventId = await writeProcurementState(
+          const substrateEventId = await writeBiologicalState(
             driver, event, ctx.slot, logs.signature
           );
 
@@ -28,8 +28,8 @@ export function startAureonListener(connection: Connection, driver: Driver): voi
           metrics.lastEventTimestamp.set({ platform: PLATFORM }, Date.now());
 
           evaluateAndPropagate(
-            'PROCUREMENT_STATE_CHANGE', PLATFORM,
-            { ...event, entityId: event.entityId },
+            'BIOLOGICAL_ANOMALY', PLATFORM,
+            { ...event, entityId: event.subjectId, severity: event.severity },
             substrateEventId
           ).catch((pErr) => {
             const pMsg = pErr instanceof Error ? pErr.message : String(pErr);

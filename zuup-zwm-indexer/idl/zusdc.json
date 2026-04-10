@@ -1,0 +1,42 @@
+{
+  "version": "0.1.0",
+  "name": "zusdc",
+  "address": "ZUSDxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+  "metadata": {
+    "name": "zusdc",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "ZUSDC settlement program"
+  },
+  "instructions": [],
+  "accounts": [],
+  "events": [
+    {
+      "name": "SettlementEvent",
+      "discriminator": [167, 44, 201, 88, 121, 33, 155, 76],
+      "fields": [
+        { "name": "transaction_id", "type": "string", "index": false },
+        { "name": "counterparty_id", "type": "string", "index": false },
+        { "name": "amount_usdc", "type": "u64", "index": false },
+        { "name": "event_type", "type": "string", "index": false },
+        { "name": "timestamp", "type": "i64", "index": false }
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "SettlementEvent",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "transaction_id", "type": "string" },
+          { "name": "counterparty_id", "type": "string" },
+          { "name": "amount_usdc", "type": "u64" },
+          { "name": "event_type", "type": "string" },
+          { "name": "timestamp", "type": "i64" }
+        ]
+      }
+    }
+  ],
+  "errors": []
+}
