@@ -46,11 +46,36 @@ const TRACKS = [
 
 export default function BuildPage() {
   const [selectedTrack, setSelectedTrack] = useState('API Access');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [org, setOrg] = useState('');
+  const [message, setMessage] = useState('');
+  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitted(true);
+    setError('');
+    setSubmitting(true);
+
+    try {
+      const resp = await fetch('/api/access-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, org, message, track: selectedTrack }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        setError(data.error ?? 'Something went wrong. Please try again.');
+        return;
+      }
+      setSubmitted(true);
+    } catch {
+      setError('Network error. Please check your connection and try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -142,29 +167,41 @@ export default function BuildPage() {
               type="text"
               placeholder="Name"
               required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
               className="w-full bg-zwn-surface border border-zwn-border rounded px-4 py-2.5 text-[12px] text-zwn-text placeholder-zwn-border outline-none focus:border-zwn-teal transition-colors"
             />
             <input
               type="email"
               placeholder="Email"
               required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="w-full bg-zwn-surface border border-zwn-border rounded px-4 py-2.5 text-[12px] text-zwn-text placeholder-zwn-border outline-none focus:border-zwn-teal transition-colors"
             />
             <input
               type="text"
               placeholder="Organization"
+              value={org}
+              onChange={(e) => setOrg(e.target.value)}
               className="w-full bg-zwn-surface border border-zwn-border rounded px-4 py-2.5 text-[12px] text-zwn-text placeholder-zwn-border outline-none focus:border-zwn-teal transition-colors"
             />
             <textarea
               placeholder="What are you building?"
               rows={3}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
               className="w-full bg-zwn-surface border border-zwn-border rounded px-4 py-2.5 text-[12px] text-zwn-text placeholder-zwn-border outline-none focus:border-zwn-teal transition-colors resize-none"
             />
+            {error && (
+              <div className="text-[11px] text-red-400">{error}</div>
+            )}
             <button
               type="submit"
-              className="w-full text-[11px] tracking-widest text-zwn-bg bg-zwn-teal rounded px-4 py-2.5 font-semibold hover:opacity-90 transition-opacity"
+              disabled={submitting}
+              className="w-full text-[11px] tracking-widest text-zwn-bg bg-zwn-teal rounded px-4 py-2.5 font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              SUBMIT REQUEST
+              {submitting ? 'SUBMITTING...' : 'SUBMIT REQUEST'}
             </button>
           </form>
         )}
