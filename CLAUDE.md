@@ -121,7 +121,75 @@ CREATE INDEX FOR (n:ComplianceState) ON (n.entity_id, n.timestamp);
 CREATE INDEX FOR (n:ProcurementState) ON (n.entity_id, n.timestamp);
 CREATE INDEX FOR (n:BiologicalState) ON (n.entity_id, n.timestamp);
 CREATE INDEX FOR (n:SubstrateEvent) ON (n.source, n.type, n.timestamp);
+-- Governance + Economics
+CREATE CONSTRAINT FOR (n:ObjectiveState) REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT FOR (n:TreatyAttestation) REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT FOR (n:FeeRecord) REQUIRE n.id IS UNIQUE;
+CREATE CONSTRAINT FOR (n:ScaleMetric) REQUIRE n.id IS UNIQUE;
+CREATE INDEX FOR (n:ObjectiveState) ON (n.status, n.timestamp);
+CREATE INDEX FOR (n:TreatyAttestation) ON (n.jurisdiction_code, n.effective_date);
+CREATE INDEX FOR (n:FeeRecord) ON (n.entity_id, n.timestamp);
+CREATE INDEX FOR (n:ScaleMetric) ON (n.platform, n.timestamp);
 ```
+
+---
+
+## Governance Graph Schema (Objective Register + Treaty Layer)
+
+### Node Types
+
+| Label | Description | Key Properties |
+|---|---|---|
+| `ObjectiveState` | DAO-approved financial/operational target | `id`, `objective_type`, `target_metric`, `target_value`, `time_horizon_years`, `omega_floor`, `lyapunov_envelope`, `status`, `proposer_id`, `dao_vote_id`, `timestamp`, `solana_slot` |
+| `TreatyAttestation` | Bilateral jurisdictional compliance agreement | `id`, `jurisdiction_code`, `jurisdiction_name`, `treaty_type`, `compliance_domain`, `attestation_hash`, `bilateral_partner`, `effective_date`, `expiry_date`, `civium_verification_id`, `timestamp`, `solana_slot` |
+
+### Edge Types
+
+| Type | Direction | Meaning | Key Properties |
+|---|---|---|---|
+| `GOVERNS` | ObjectiveState → WorldActor | This objective governs this actor's behavior | `since`, `priority` |
+| `AUTHORIZED_BY` | ObjectiveState → TreatyAttestation | Objective authorized by this treaty | `scope` |
+| `EXPANDS_SCOPE` | TreatyAttestation → TreatyAttestation | New treaty expands jurisdictional scope | `at` |
+
+### Objective Status Values
+`PROPOSED` → `VOTING` → `APPROVED` → `ACTIVE` → `COMPLETED` | `REJECTED` | `TERMINATED`
+
+### Objective Query Pattern
+```cypher
+-- "What are the current active objectives?"
+MATCH (o:ObjectiveState)
+WHERE o.status = 'ACTIVE' AND NOT (o)-[:SUPERSEDES]->()
+RETURN o ORDER BY o.timestamp DESC
+```
+
+---
+
+## Economics Graph Schema (Fee Engine + Scale Coherence)
+
+### Node Types
+
+| Label | Description | Key Properties |
+|---|---|---|
+| `FeeRecord` | Fee charged on cross-platform ZUSDC settlement | `id`, `settlement_id`, `fee_amount_usdc`, `fee_basis_points`, `fee_type`, `source_platform`, `target_platform`, `entity_id`, `timestamp` |
+| `ScaleMetric` | D7 Scale Coherence assessment snapshot | `id`, `platform`, `omega_rsf`, `omega_max`, `entropy_production`, `lyapunov_exponent`, `market_footprint`, `jurisdictional_coverage`, `assessment_status`, `timestamp` |
+
+### Edge Types
+
+| Type | Direction | Meaning | Key Properties |
+|---|---|---|---|
+| `FEE_ON` | FeeRecord → SettlementRecord | Fee charged on this settlement | `basis_points` |
+| `ASSESSED_BY` | ScaleMetric → ObjectiveState | Metric assesses this objective's viability | `at` |
+
+### Scale Coherence Formula
+```
+omega_max = market_footprint_ratio * jurisdictional_coverage_ratio * (1 - entropy_production_normalized)
+```
+Where:
+- `market_footprint_ratio` = platform transaction volume / addressable market size
+- `jurisdictional_coverage_ratio` = attested jurisdictions / required jurisdictions for objective
+- `entropy_production_normalized` = system entropy / maximum stable entropy budget
+
+A platform's omega_rsf must remain below omega_max. If omega_rsf > omega_max, the scale-breach causal rule fires and triggers Veyra reasoning.
 
 ---
 
@@ -140,6 +208,10 @@ successful Neo4j write and calls the target platform's `POST /zwm/ingest` endpoi
 | `MIGRATION_COMPLETE` | relian | semanticPreservation >= 0.95 | `WRITE_ATTESTATION` | zuup_hq |
 | `COMPUTE_DEGRADATION` | podx | availability < 0.90 | `TRIGGER_REASONING` | veyra |
 | `FITIQ_THRESHOLD` | aureon | fitiq < 50 | `FLAG_SETTLEMENT` | zusdc |
+| `TREATY_ATTESTATION_NEW` | civium | always | `NOTIFY_SCOPE_EXPANSION` | governance |
+| `SCALE_METRIC_UPDATE` | economics | omega_rsf > omega_max | `TRIGGER_REASONING` (SCALE_BREACH) | veyra |
+| `OBJECTIVE_STATE_CHANGE` | governance | status === 'APPROVED' | `BROADCAST_OBJECTIVE` | all platforms |
+| `SETTLEMENT_EVENT` | zusdc | amount > fee_threshold | `CALCULATE_FEE` | fee-engine |
 
 ---
 
@@ -330,6 +402,21 @@ Use `src/db/init.ts` called at startup before listeners activate.
 Veyra queries `http://zwm-indexer:4000/graphql` for world state before each
 inference call. Context injection layer: build after Phases 2A/B/C have data flowing.
 
+### Phase 4 — Governance + Economics Foundation
+Build the architectural layers that position ZWM for 100-year vertical scaling:
+
+1. **Objective Register** — `src/governance/` module: persistent goal representation
+   on Neo4j graph, queryable by Veyra for goal-directed reasoning
+2. **Treaty Layer** — `src/governance/treaty-writer.ts`: bilateral jurisdictional
+   compliance attestations extending Civium's GCP
+3. **Fee Engine** — `src/economics/fee-engine.ts`: basis-point fees on cross-platform
+   ZUSDC settlements (the SWIFT model)
+4. **Scale Coherence** — `src/economics/scale-coherence.ts`: D7 omega_max envelope
+   evaluator for OMEGA-VEB-1
+
+See `docs/strategic/zwm-recursive-limitations.md` for the full limitations analysis
+and 100-year positioning strategy.
+
 ---
 
 ## Green-Path Validation Test
@@ -478,6 +565,47 @@ to seeded mock data silently (no error shown to visitor).
 - CLAUDE.md — added zblackhole.io to Repo Map, added UI session prompts
 
 **Next action:** Initialize zblackhole.io Next.js repo, run UI-1 → UI-3.
+
+---
+
+### 2026-04-10
+**Session topic:** ZWM recursive self-improvement limitations analysis + 100-year positioning
+**Decisions made:**
+- Five hard limitation classes identified and documented (volitional architecture, OMEGA-VEB-1 scale, governance scope, income mechanism, alignment ceiling)
+- Five solutions designed and mapped to existing nine-platform architecture
+- Core reframe established: infrastructure embedding (SWIFT/Visa model), not extraction
+- Trust flywheel model: Trust → Adoption → Volume → Revenue → R&D → Capability → Trust
+- Governance foundation layer built: Objective Register (ObjectiveState), Treaty Layer (TreatyAttestation)
+- Economics foundation layer built: Fee Engine (FeeRecord), Scale Coherence (ScaleMetric)
+- Graph schema extended: 4 new node types, 3 new edge types, 4 new causal rules
+- Veyra context injection extended to include objectives, treaties, and scale metrics
+- Phase 4 added to build sequence (Governance + Economics Foundation)
+
+**Files created:**
+- `docs/strategic/zwm-recursive-limitations.md` — full limitations analysis + solutions + 100-year roadmap
+- `zuup-zwm-indexer/src/governance/types.ts` — governance TypeScript interfaces
+- `zuup-zwm-indexer/src/governance/objective-writer.ts` — Objective Register Neo4j writer
+- `zuup-zwm-indexer/src/governance/treaty-writer.ts` — Treaty attestation Neo4j writer
+- `zuup-zwm-indexer/src/governance/objective-reader.ts` — Objective reader for Veyra
+- `zuup-zwm-indexer/src/economics/types.ts` — economics TypeScript interfaces
+- `zuup-zwm-indexer/src/economics/fee-engine.ts` — ZUSDC fee calculation engine
+- `zuup-zwm-indexer/src/economics/fee-writer.ts` — fee record Neo4j writer
+- `zuup-zwm-indexer/src/economics/scale-coherence.ts` — D7 Scale Coherence evaluator
+- `zuup-zwm-indexer/config/scale-rules.ts` — scale coherence parameters
+
+**Files modified:**
+- CLAUDE.md — governance/economics graph schema, new causal rules, Phase 4, context log
+- `zuup-zwm-indexer/src/db/init.ts` — 4 new constraints + 4 new indexes
+- `zuup-zwm-indexer/config/causal-rules.ts` — 4 governance/economics rules
+- `zuup-zwm-indexer/src/api/graphql-server.ts` — 4 new types + 5 new queries
+- `veyra/service/src/zwm/context_client.py` — 3 new fetch functions
+- `veyra/service/src/zwm/context_formatter.py` — 3 new formatter sections
+
+**Epistemic status update:**
+- Governance + Economics layers: ◐ Plausible (architecturally sound, not yet validated with live data)
+- 100-year positioning: ◯ Speculative (requires jurisdictional expansion + network effects)
+
+**Next action:** Complete Phase 2A remaining platforms, then validate governance/economics layers with test data.
 
 ---
 

@@ -118,4 +118,67 @@ export const CAUSAL_RULES: CausalRule[] = [
       triggerEventId: eventId,
     }),
   },
+
+  // --- Governance + Economics rules ---
+
+  {
+    id: 'treaty-expansion-dao',
+    trigger: 'TREATY_ATTESTATION_NEW',
+    source: 'civium',
+    condition: () => true, // All new treaties trigger scope expansion notification
+    effect: 'NOTIFY_SCOPE_EXPANSION',
+    targetEnvKey: 'GOVERNANCE_INGEST_URL',
+    effectParams: (p, eventId) => ({
+      jurisdictionCode: p['jurisdictionCode'],
+      treatyType: p['treatyType'],
+      bilateralPartner: p['bilateralPartner'],
+      triggerEventId: eventId,
+    }),
+  },
+  {
+    id: 'scale-breach-veyra',
+    trigger: 'SCALE_METRIC_UPDATE',
+    source: 'economics',
+    condition: (p) => Number(p['omegaRsf']) > Number(p['omegaMax']),
+    effect: 'TRIGGER_REASONING',
+    targetEnvKey: 'VEYRA_INGEST_URL',
+    effectParams: (p, eventId) => ({
+      context: 'SCALE_BREACH',
+      platform: p['platform'],
+      omegaRsf: p['omegaRsf'],
+      omegaMax: p['omegaMax'],
+      assessmentStatus: p['assessmentStatus'],
+      triggerEventId: eventId,
+    }),
+  },
+  {
+    id: 'objective-approved-all',
+    trigger: 'OBJECTIVE_STATE_CHANGE',
+    source: 'governance',
+    condition: (p) => p['status'] === 'APPROVED',
+    effect: 'BROADCAST_OBJECTIVE',
+    targetEnvKey: 'GOVERNANCE_INGEST_URL',
+    effectParams: (p, eventId) => ({
+      objectiveType: p['objectiveType'],
+      targetMetric: p['targetMetric'],
+      targetValue: p['targetValue'],
+      timeHorizonYears: p['timeHorizonYears'],
+      triggerEventId: eventId,
+    }),
+  },
+  {
+    id: 'settlement-fee-zusdc',
+    trigger: 'SETTLEMENT_EVENT',
+    source: 'zusdc',
+    condition: (p) => Number(p['amountUsdc']) >= 1_000_000, // >= $1 USDC (6 decimals)
+    effect: 'CALCULATE_FEE',
+    targetEnvKey: 'ECONOMICS_INGEST_URL',
+    effectParams: (p, eventId) => ({
+      settlementId: p['transactionId'],
+      amountUsdc: p['amountUsdc'],
+      counterpartyId: p['counterpartyId'],
+      eventType: p['eventType'],
+      triggerEventId: eventId,
+    }),
+  },
 ];

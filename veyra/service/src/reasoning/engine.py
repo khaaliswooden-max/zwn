@@ -10,6 +10,10 @@ from src.zwm.context_client import (
     fetch_causal_chain,
     fetch_composite_risk,
     fetch_full_world_state,
+    fetch_active_objectives,
+    fetch_treaty_coverage,
+    fetch_jurisdictional_footprint,
+    fetch_scale_assessment,
 )
 from src.zwm.context_formatter import format_world_state_context
 
@@ -68,6 +72,9 @@ class ReasoningEngine:
                 entity_id, trigger_event_id
             )
 
+        # Fetch governance + economics context (always, not just per-entity)
+        objectives, treaties, footprint, scale = await _fetch_governance_economics()
+
         # Build context block and inject into prompt
         context_block = format_world_state_context(
             entity_id=entity_id or "unknown",
@@ -75,6 +82,10 @@ class ReasoningEngine:
             composite_risk=composite_risk,
             trigger_context=context_type,
             causal_chain=causal_chain,
+            active_objectives=objectives,
+            treaty_coverage=treaties,
+            jurisdictional_footprint=footprint,
+            scale_assessment=scale,
         )
         user_prompt = _build_prompt(context_type, context_block, action_params)
 
@@ -122,6 +133,22 @@ async def _fetch_all(
     return full_world_state, composite_risk, causal_chain
 
 
+async def _fetch_governance_economics() -> tuple[
+    list[Any], list[Any], Any, Any
+]:
+    """Fetch governance + economics context concurrently."""
+    import asyncio
+
+    objectives, treaties, footprint, scale = await asyncio.gather(
+        fetch_active_objectives(),
+        fetch_treaty_coverage(),
+        fetch_jurisdictional_footprint(),
+        fetch_scale_assessment("zwm"),  # global ZWM-level assessment
+        return_exceptions=False,
+    )
+    return objectives, treaties, footprint, scale
+
+
 def _build_prompt(
     context_type: str,
     context_block: str,
@@ -142,6 +169,17 @@ def _build_prompt(
             f"{avail_str} availability (threshold: 90.0%). "
             "Review the ZWM world state context above. Provide your assessment and "
             "recommend how compute resources should be reallocated."
+        )
+    elif context_type == "SCALE_BREACH":
+        question = (
+            f"D7 Scale Coherence BREACH detected for platform "
+            f"'{params.get('platform', 'unknown')}'. "
+            f"omega_rsf ({params.get('omegaRsf', '?')}) exceeds "
+            f"omega_max ({params.get('omegaMax', '?')}). "
+            "The system is growing faster than its institutional and thermodynamic "
+            "foundations can support. Review the Objective Register and treaty coverage "
+            "in the context above. Recommend whether to: (a) scale back operations, "
+            "(b) accelerate jurisdictional expansion, or (c) adjust the objective targets."
         )
     else:
         question = (

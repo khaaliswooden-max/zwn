@@ -7,6 +7,12 @@ import { startEnterpriseApi } from './api/enterprise-api';
 import { startCiviumListener } from './listeners/civium-listener';
 import { startAureonListener } from './listeners/aureon-listener';
 
+// Governance + Economics modules (Phase 4 — 100-year positioning)
+// Writers are invoked by causal rules and API endpoints, not at startup.
+// Importing here validates the modules load correctly at bootstrap.
+import './governance/types';
+import './economics/types';
+
 async function main(): Promise<void> {
   // Neo4j driver
   const driver = neo4j.driver(
@@ -14,10 +20,10 @@ async function main(): Promise<void> {
     neo4j.auth.basic(process.env['NEO4J_USER']!, process.env['NEO4J_PASSWORD']!)
   );
 
-  // 1. Initialize DB constraints and indexes
+  // 1. Initialize DB constraints and indexes (includes governance + economics)
   await initDb(driver);
 
-  // 2. Start GraphQL API (port 4000)
+  // 2. Start GraphQL API (port 4000) — includes governance + economics queries
   await startGraphQL(driver);
 
   // 3. Start Enterprise REST API (port 3001)
@@ -34,6 +40,7 @@ async function main(): Promise<void> {
   startAureonListener(connection, driver);
 
   console.log('[index] ZWM indexer running.');
+  console.log('[index] Governance + Economics layers loaded (Phase 4).');
 }
 
 main().catch((err) => {
