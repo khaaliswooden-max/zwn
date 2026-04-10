@@ -25,3 +25,11 @@ frontend/.next/
 # Env
 .env
 zuup-zwm-indexer/.env
+zwm-daily/.env
+
+# ZWM Daily Brief output
+zwm-daily/output/*.docx
+zwm-daily/output/*.json
+zwm-daily/output/run.log
+zwm-daily/node_modules/
+zwm-daily/package-lock.json
