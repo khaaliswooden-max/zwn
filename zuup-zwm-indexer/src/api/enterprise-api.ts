@@ -81,7 +81,7 @@ async function handleWorldState(
 
     const stateResult = await session.run(
       `MATCH (a:WorldActor {id: $entityId})-[:HAS_STATE]->(state)
-       WHERE NOT (state)-[:SUPERSEDES]->()
+       WHERE state.is_current = true
        RETURN labels(state)[0] AS substrate, state`,
       { entityId }
     );
@@ -116,7 +116,7 @@ async function handleCompositeRisk(
   try {
     const result = await session.run(
       `MATCH (a:WorldActor {id: $entityId})-[:HAS_STATE]->(state)
-       WHERE NOT (state)-[:SUPERSEDES]->()
+       WHERE state.is_current = true
        RETURN labels(state)[0] AS substrate, state`,
       { entityId }
     );
@@ -163,7 +163,7 @@ async function handleEntitiesByCompliance(
     const result = await session.run(
       `MATCH (a:WorldActor)-[:HAS_STATE]->(cs:ComplianceState)
        WHERE cs.status = $status ${domainFilter}
-       AND NOT (cs)-[:SUPERSEDES]->()
+       AND cs.is_current = true
        RETURN DISTINCT a`,
       { status, domain }
     );

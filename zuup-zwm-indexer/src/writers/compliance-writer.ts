@@ -15,17 +15,14 @@ export async function writeComplianceState(
 
   try {
     await session.executeWrite(async (tx) => {
-      // 1. Merge WorldActor
       await tx.run(
-        `MERGE (a:WorldActor {id: $entityId})
-         ON CREATE SET a.created_at = $now
-         SET a.last_seen = $now`,
-        { entityId: payload.entityId, now }
-      );
-
-      // 2. Create ComplianceState
-      await tx.run(
-        `CREATE (s:ComplianceState {
+        `// 1. Merge WorldActor
+         MERGE (a:WorldActor {id: $entityId})
+           ON CREATE SET a.created_at = $now
+           SET a.last_seen = $now
+         WITH a
+         // 2. Create new ComplianceState (is_current = true)
+         CREATE (s:ComplianceState {
            id: $stateId,
            entity_id: $entityId,
            status: $status,
@@ -34,8 +31,34 @@ export async function writeComplianceState(
            evidence_hash: $evidenceHash,
            timestamp: $timestamp,
            solana_slot: $solanaSlot,
-           tx_signature: $txSignature
-         })`,
+           tx_signature: $txSignature,
+           is_current: true
+         })
+         WITH a, s
+         // 3. Find previous current state and mark it superseded
+         OPTIONAL MATCH (a)-[:HAS_STATE]->(prev:ComplianceState {is_current: true})
+           WHERE prev.id <> s.id
+         SET prev.is_current = false
+         WITH a, s, prev
+         // 4. Wire SUPERSEDES edge to previous state (if any)
+         FOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END |
+           CREATE (s)-[:SUPERSEDES {at: $now}]->(prev)
+         )
+         WITH a, s
+         // 5. Attach HAS_STATE
+         CREATE (a)-[:HAS_STATE {since: $timestamp, source: 'civium'}]->(s)
+         WITH s
+         // 6. Create SubstrateEvent + EMITTED edge
+         CREATE (e:SubstrateEvent {
+           id: $eventId,
+           type: 'COMPLIANCE_STATE_CHANGE',
+           source: 'civium',
+           entity_id: $entityId,
+           payload_hash: $payloadHash,
+           solana_slot: $solanaSlot,
+           timestamp: $timestamp
+         })
+         CREATE (s)-[:EMITTED]->(e)`,
         {
           stateId,
           entityId: payload.entityId,
@@ -46,51 +69,10 @@ export async function writeComplianceState(
           timestamp: payload.timestamp,
           solanaSlot,
           txSignature,
-        }
-      );
-
-      // 3. Wire SUPERSEDES to previous current state (if any)
-      await tx.run(
-        `MATCH (a:WorldActor {id: $entityId})-[:HAS_STATE]->(prev:ComplianceState)
-         WHERE NOT (prev)-[:SUPERSEDES]->()
-         WITH prev
-         MATCH (s:ComplianceState {id: $stateId})
-         CREATE (s)-[:SUPERSEDES {at: $now}]->(prev)`,
-        { entityId: payload.entityId, stateId, now }
-      );
-
-      // 4. Attach HAS_STATE
-      await tx.run(
-        `MATCH (a:WorldActor {id: $entityId}), (s:ComplianceState {id: $stateId})
-         CREATE (a)-[:HAS_STATE {since: $timestamp, source: 'civium'}]->(s)`,
-        { entityId: payload.entityId, stateId, timestamp: payload.timestamp }
-      );
-
-      // 5. Create SubstrateEvent
-      await tx.run(
-        `CREATE (e:SubstrateEvent {
-           id: $eventId,
-           type: 'COMPLIANCE_STATE_CHANGE',
-           source: 'civium',
-           entity_id: $entityId,
-           payload_hash: $payloadHash,
-           solana_slot: $solanaSlot,
-           timestamp: $timestamp
-         })`,
-        {
-          eventId,
-          entityId: payload.entityId,
           payloadHash: Buffer.from(payload.evidenceHash).toString('hex'),
-          solanaSlot,
-          timestamp: payload.timestamp,
+          eventId,
+          now,
         }
-      );
-
-      // 6. Wire EMITTED edge
-      await tx.run(
-        `MATCH (s:ComplianceState {id: $stateId}), (e:SubstrateEvent {id: $eventId})
-         CREATE (s)-[:EMITTED]->(e)`,
-        { stateId, eventId }
       );
     });
 

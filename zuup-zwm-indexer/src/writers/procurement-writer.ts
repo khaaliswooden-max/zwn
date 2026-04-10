@@ -16,17 +16,14 @@ export async function writeProcurementState(
 
   try {
     await session.executeWrite(async (tx) => {
-      // 1. Merge WorldActor
       await tx.run(
-        `MERGE (a:WorldActor {id: $entityId})
-         ON CREATE SET a.created_at = $now
-         SET a.last_seen = $now`,
-        { entityId: payload.entityId, now }
-      );
-
-      // 2. Create ProcurementState
-      await tx.run(
-        `CREATE (s:ProcurementState {
+        `// 1. Merge WorldActor
+         MERGE (a:WorldActor {id: $entityId})
+           ON CREATE SET a.created_at = $now
+           SET a.last_seen = $now
+         WITH a
+         // 2. Create new ProcurementState (is_current = true)
+         CREATE (s:ProcurementState {
            id: $stateId,
            entity_id: $entityId,
            fitiq: $fitiq,
@@ -34,8 +31,34 @@ export async function writeProcurementState(
            opportunity_count: $opportunityCount,
            timestamp: $timestamp,
            solana_slot: $solanaSlot,
-           tx_signature: $txSignature
-         })`,
+           tx_signature: $txSignature,
+           is_current: true
+         })
+         WITH a, s
+         // 3. Find previous current state and mark it superseded
+         OPTIONAL MATCH (a)-[:HAS_STATE]->(prev:ProcurementState {is_current: true})
+           WHERE prev.id <> s.id
+         SET prev.is_current = false
+         WITH a, s, prev
+         // 4. Wire SUPERSEDES edge to previous state (if any)
+         FOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END |
+           CREATE (s)-[:SUPERSEDES {at: $now}]->(prev)
+         )
+         WITH a, s
+         // 5. Attach HAS_STATE
+         CREATE (a)-[:HAS_STATE {since: $timestamp, source: 'aureon'}]->(s)
+         WITH s
+         // 6. Create SubstrateEvent + EMITTED edge
+         CREATE (e:SubstrateEvent {
+           id: $eventId,
+           type: 'PROCUREMENT_STATE_CHANGE',
+           source: 'aureon',
+           entity_id: $entityId,
+           payload_hash: $payloadHash,
+           solana_slot: $solanaSlot,
+           timestamp: $timestamp
+         })
+         CREATE (s)-[:EMITTED]->(e)`,
         {
           stateId,
           entityId: payload.entityId,
@@ -45,54 +68,13 @@ export async function writeProcurementState(
           timestamp: payload.timestamp,
           solanaSlot,
           txSignature,
-        }
-      );
-
-      // 3. Wire SUPERSEDES to previous current state (if any)
-      await tx.run(
-        `MATCH (a:WorldActor {id: $entityId})-[:HAS_STATE]->(prev:ProcurementState)
-         WHERE NOT (prev)-[:SUPERSEDES]->()
-         WITH prev
-         MATCH (s:ProcurementState {id: $stateId})
-         CREATE (s)-[:SUPERSEDES {at: $now}]->(prev)`,
-        { entityId: payload.entityId, stateId, now }
-      );
-
-      // 4. Attach HAS_STATE
-      await tx.run(
-        `MATCH (a:WorldActor {id: $entityId}), (s:ProcurementState {id: $stateId})
-         CREATE (a)-[:HAS_STATE {since: $timestamp, source: 'aureon'}]->(s)`,
-        { entityId: payload.entityId, stateId, timestamp: payload.timestamp }
-      );
-
-      // 5. Create SubstrateEvent
-      await tx.run(
-        `CREATE (e:SubstrateEvent {
-           id: $eventId,
-           type: 'PROCUREMENT_STATE_CHANGE',
-           source: 'aureon',
-           entity_id: $entityId,
-           payload_hash: $payloadHash,
-           solana_slot: $solanaSlot,
-           timestamp: $timestamp
-         })`,
-        {
-          eventId,
-          entityId: payload.entityId,
           payloadHash: `fitiq:${payload.fitiqScore}:upd:${payload.updScore}`,
-          solanaSlot,
-          timestamp: payload.timestamp,
+          eventId,
+          now,
         }
       );
 
-      // 6. Wire EMITTED edge
-      await tx.run(
-        `MATCH (s:ProcurementState {id: $stateId}), (e:SubstrateEvent {id: $eventId})
-         CREATE (s)-[:EMITTED]->(e)`,
-        { stateId, eventId }
-      );
-
-      // 7. Wire CAUSED_BY if this was triggered by a causal event
+      // 7. Wire CAUSED_BY if this was triggered by a causal event (separate query - needs conditional logic)
       if (causedByEventId) {
         await tx.run(
           `MATCH (s:ProcurementState {id: $stateId}), (trigger:SubstrateEvent {id: $causedByEventId})

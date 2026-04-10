@@ -214,7 +214,7 @@ function buildResolvers(driver: Driver) {
           const result = await session.run(
             `MATCH (a:WorldActor)-[:HAS_STATE]->(cs:ComplianceState)
              WHERE cs.status = $status ${domainFilter}
-             AND NOT (cs)-[:SUPERSEDES]->()
+             AND cs.is_current = true
              RETURN DISTINCT a`,
             { status, domain }
           );
@@ -247,7 +247,7 @@ function buildResolvers(driver: Driver) {
         try {
           const result = await session.run(
             `MATCH (a:WorldActor {id: $entityId})-[:HAS_STATE]->(state)
-             WHERE NOT (state)-[:SUPERSEDES]->()
+             WHERE state.is_current = true
              RETURN labels(state)[0] AS substrate, state`,
             { entityId }
           );
@@ -297,7 +297,7 @@ function buildResolvers(driver: Driver) {
           // Fetch all current state nodes (no outgoing SUPERSEDES edge = current)
           const stateResult = await session.run(
             `MATCH (a:WorldActor {id: $entityId})-[:HAS_STATE]->(state)
-             WHERE NOT (state)-[:SUPERSEDES]->()
+             WHERE state.is_current = true
              RETURN labels(state)[0] AS substrate, state`,
             { entityId }
           );
@@ -329,7 +329,7 @@ function buildResolvers(driver: Driver) {
           const result = await session.run(
             `MATCH (o:ObjectiveState)
              WHERE o.status IN ['ACTIVE', 'APPROVED']
-               AND NOT (o)-[:SUPERSEDES]->()
+               AND o.is_current = true
              RETURN o
              ORDER BY o.timestamp DESC`
           );
@@ -408,7 +408,7 @@ function buildResolvers(driver: Driver) {
         try {
           const result = await session.run(
             `MATCH (m:ScaleMetric {platform: $platform})
-             WHERE NOT (m)-[:SUPERSEDES]->()
+             WHERE m.is_current = true
              RETURN m
              LIMIT 1`,
             { platform }

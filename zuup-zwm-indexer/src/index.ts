@@ -14,10 +14,15 @@ import './governance/types';
 import './economics/types';
 
 async function main(): Promise<void> {
-  // Neo4j driver
+  // Neo4j driver (connection pool: up to 50 connections, 30s acquisition timeout)
   const driver = neo4j.driver(
     process.env['NEO4J_URI']!,
-    neo4j.auth.basic(process.env['NEO4J_USER']!, process.env['NEO4J_PASSWORD']!)
+    neo4j.auth.basic(process.env['NEO4J_USER']!, process.env['NEO4J_PASSWORD']!),
+    {
+      maxConnectionPoolSize: parseInt(process.env['NEO4J_POOL_SIZE'] ?? '50', 10),
+      connectionAcquisitionTimeout: 30_000,
+      maxTransactionRetryTime: 15_000,
+    }
   );
 
   // 1. Initialize DB constraints and indexes (includes governance + economics)

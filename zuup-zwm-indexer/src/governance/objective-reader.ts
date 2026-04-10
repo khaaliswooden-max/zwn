@@ -43,7 +43,7 @@ export async function readActiveObjectives(driver: Driver): Promise<ActiveObject
     const result = await session.run(
       `MATCH (o:ObjectiveState)
        WHERE o.status IN ['ACTIVE', 'APPROVED']
-         AND NOT (o)-[:SUPERSEDES]->()
+         AND o.is_current = true
        RETURN o
        ORDER BY o.timestamp DESC`,
     );

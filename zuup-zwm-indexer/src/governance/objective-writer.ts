@@ -6,11 +6,12 @@ import { ObjectivePayload } from './types';
  * Writes an ObjectiveState node to the Neo4j graph.
  * Follows the same append-only pattern as compliance-writer.ts:
  *   1. Merge WorldActor (the proposer)
- *   2. Create ObjectiveState node
+ *   2. Create ObjectiveState node (is_current = true)
  *   3. Wire SUPERSEDES to previous objective of the same type (if any)
  *   4. Attach GOVERNS edge to target entity (or global)
- *   5. Create SubstrateEvent
- *   6. Wire EMITTED edge
+ *   5. Create SubstrateEvent + EMITTED edge
+ *
+ * Batched into a single Cypher statement (6 round-trips -> 1).
  */
 export async function writeObjectiveState(
   driver: Driver,
@@ -26,17 +27,15 @@ export async function writeObjectiveState(
 
   try {
     await session.executeWrite(async (tx) => {
-      // 1. Merge WorldActor for the proposer
+      // Main batched write: actor + state + supersedes + governs + event + emitted
       await tx.run(
-        `MERGE (a:WorldActor {id: $proposerId})
-         ON CREATE SET a.created_at = $now
-         SET a.last_seen = $now`,
-        { proposerId: payload.proposerId, now },
-      );
-
-      // 2. Create ObjectiveState
-      await tx.run(
-        `CREATE (o:ObjectiveState {
+        `// 1. Merge WorldActor for the proposer
+         MERGE (a:WorldActor {id: $proposerId})
+           ON CREATE SET a.created_at = $now
+           SET a.last_seen = $now
+         WITH a
+         // 2. Create ObjectiveState (is_current = true)
+         CREATE (o:ObjectiveState {
            id: $stateId,
            objective_type: $objectiveType,
            target_metric: $targetMetric,
@@ -48,8 +47,37 @@ export async function writeObjectiveState(
            proposer_id: $proposerId,
            dao_vote_id: $daoVoteId,
            timestamp: $now,
-           solana_slot: $solanaSlot
-         })`,
+           solana_slot: $solanaSlot,
+           is_current: true
+         })
+         WITH a, o
+         // 3. Find previous current objective of same type and mark superseded
+         OPTIONAL MATCH (prev:ObjectiveState {objective_type: $objectiveType, is_current: true})
+           WHERE prev.id <> o.id
+         SET prev.is_current = false
+         WITH a, o, prev
+         FOREACH (_ IN CASE WHEN prev IS NOT NULL THEN [1] ELSE [] END |
+           CREATE (o)-[:SUPERSEDES {at: $now}]->(prev)
+         )
+         WITH a, o
+         // 4. Attach GOVERNS edge to target entity
+         MERGE (target:WorldActor {id: $targetEntityId})
+           ON CREATE SET target.created_at = $now
+           SET target.last_seen = $now
+         WITH o, target
+         CREATE (o)-[:GOVERNS {since: $now, priority: $timeHorizonYears}]->(target)
+         WITH o
+         // 5-6. Create SubstrateEvent + EMITTED
+         CREATE (e:SubstrateEvent {
+           id: $eventId,
+           type: 'OBJECTIVE_STATE_CHANGE',
+           source: 'governance',
+           entity_id: $proposerId,
+           payload_hash: $payloadHash,
+           solana_slot: $solanaSlot,
+           timestamp: $now
+         })
+         CREATE (o)-[:EMITTED]->(e)`,
         {
           stateId,
           objectiveType: payload.objectiveType,
@@ -61,57 +89,12 @@ export async function writeObjectiveState(
           status: payload.status,
           proposerId: payload.proposerId,
           daoVoteId: payload.daoVoteId,
-          now,
-          solanaSlot,
-        },
-      );
-
-      // 3. Wire SUPERSEDES to previous objective of the same type (if any)
-      await tx.run(
-        `MATCH (prev:ObjectiveState {objective_type: $objectiveType})
-         WHERE prev.id <> $stateId AND NOT (prev)-[:SUPERSEDES]->()
-         WITH prev
-         MATCH (o:ObjectiveState {id: $stateId})
-         CREATE (o)-[:SUPERSEDES {at: $now}]->(prev)`,
-        { objectiveType: payload.objectiveType, stateId, now },
-      );
-
-      // 4. Attach GOVERNS edge to target entity
-      await tx.run(
-        `MERGE (target:WorldActor {id: $targetEntityId})
-         ON CREATE SET target.created_at = $now
-         SET target.last_seen = $now
-         WITH target
-         MATCH (o:ObjectiveState {id: $stateId})
-         CREATE (o)-[:GOVERNS {since: $now, priority: $timeHorizonYears}]->(target)`,
-        { targetEntityId, stateId, now, timeHorizonYears: payload.timeHorizonYears },
-      );
-
-      // 5. Create SubstrateEvent
-      await tx.run(
-        `CREATE (e:SubstrateEvent {
-           id: $eventId,
-           type: 'OBJECTIVE_STATE_CHANGE',
-           source: 'governance',
-           entity_id: $proposerId,
-           payload_hash: $payloadHash,
-           solana_slot: $solanaSlot,
-           timestamp: $now
-         })`,
-        {
-          eventId,
-          proposerId: payload.proposerId,
+          targetEntityId,
           payloadHash: `obj:${payload.objectiveType}:${payload.status}:${payload.targetMetric}`,
+          eventId,
           solanaSlot,
           now,
         },
-      );
-
-      // 6. Wire EMITTED edge
-      await tx.run(
-        `MATCH (o:ObjectiveState {id: $stateId}), (e:SubstrateEvent {id: $eventId})
-         CREATE (o)-[:EMITTED]->(e)`,
-        { stateId, eventId },
       );
     });
 

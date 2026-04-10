@@ -5,11 +5,13 @@ import { FeeRecordPayload } from './types';
 /**
  * Writes a FeeRecord node to the Neo4j graph.
  * Follows the append-only pattern:
- *   1. Create FeeRecord node
+ *   1. Merge WorldActor + Create FeeRecord
  *   2. Wire FEE_ON edge to the originating SettlementRecord
  *   3. Wire HAS_STATE from the entity's WorldActor
- *   4. Create SubstrateEvent
- *   5. Wire EMITTED edge
+ *   4. Create SubstrateEvent + EMITTED edge
+ *
+ * Batched into minimal Cypher (5 round-trips -> 2).
+ * FEE_ON is separate because SettlementRecord may not exist.
  */
 export async function writeFeeRecord(
   driver: Driver,
@@ -22,9 +24,14 @@ export async function writeFeeRecord(
 
   try {
     await session.executeWrite(async (tx) => {
-      // 1. Create FeeRecord
+      // Main batched write: actor + fee + has_state + event + emitted
       await tx.run(
-        `CREATE (f:FeeRecord {
+        `// 1+3. Merge WorldActor and create FeeRecord with HAS_STATE
+         MERGE (a:WorldActor {id: $entityId})
+           ON CREATE SET a.created_at = $now
+           SET a.last_seen = $now
+         WITH a
+         CREATE (f:FeeRecord {
            id: $feeId,
            settlement_id: $settlementId,
            fee_amount_usdc: $feeAmountUsdc,
@@ -34,7 +41,20 @@ export async function writeFeeRecord(
            target_platform: $targetPlatform,
            entity_id: $entityId,
            timestamp: $now
-         })`,
+         })
+         CREATE (a)-[:HAS_STATE {since: $now, source: 'economics'}]->(f)
+         WITH f
+         // 4-5. Create SubstrateEvent + EMITTED
+         CREATE (e:SubstrateEvent {
+           id: $eventId,
+           type: 'FEE_COLLECTED',
+           source: 'economics',
+           entity_id: $entityId,
+           payload_hash: $payloadHash,
+           solana_slot: 0,
+           timestamp: $now
+         })
+         CREATE (f)-[:EMITTED]->(e)`,
         {
           feeId,
           settlementId: payload.settlementId,
@@ -44,52 +64,17 @@ export async function writeFeeRecord(
           sourcePlatform: payload.sourcePlatform,
           targetPlatform: payload.targetPlatform,
           entityId: payload.entityId,
+          payloadHash: `fee:${payload.feeType}:${payload.feeBasisPoints}bps:${payload.feeAmountUsdc}`,
+          eventId,
           now,
         },
       );
 
-      // 2. Wire FEE_ON to SettlementRecord (if it exists in the graph)
+      // 2. Wire FEE_ON to SettlementRecord (separate: record may not exist)
       await tx.run(
         `MATCH (f:FeeRecord {id: $feeId}), (s:SettlementRecord {id: $settlementId})
          CREATE (f)-[:FEE_ON {basis_points: $feeBasisPoints}]->(s)`,
         { feeId, settlementId: payload.settlementId, feeBasisPoints: payload.feeBasisPoints },
-      );
-
-      // 3. Wire HAS_STATE from entity WorldActor
-      await tx.run(
-        `MERGE (a:WorldActor {id: $entityId})
-         ON CREATE SET a.created_at = $now
-         SET a.last_seen = $now
-         WITH a
-         MATCH (f:FeeRecord {id: $feeId})
-         CREATE (a)-[:HAS_STATE {since: $now, source: 'economics'}]->(f)`,
-        { entityId: payload.entityId, feeId, now },
-      );
-
-      // 4. Create SubstrateEvent
-      await tx.run(
-        `CREATE (e:SubstrateEvent {
-           id: $eventId,
-           type: 'FEE_COLLECTED',
-           source: 'economics',
-           entity_id: $entityId,
-           payload_hash: $payloadHash,
-           solana_slot: 0,
-           timestamp: $now
-         })`,
-        {
-          eventId,
-          entityId: payload.entityId,
-          payloadHash: `fee:${payload.feeType}:${payload.feeBasisPoints}bps:${payload.feeAmountUsdc}`,
-          now,
-        },
-      );
-
-      // 5. Wire EMITTED edge
-      await tx.run(
-        `MATCH (f:FeeRecord {id: $feeId}), (e:SubstrateEvent {id: $eventId})
-         CREATE (f)-[:EMITTED]->(e)`,
-        { feeId, eventId },
       );
     });
 
