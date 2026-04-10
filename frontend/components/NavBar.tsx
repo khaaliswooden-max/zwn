@@ -15,7 +15,7 @@ export default function NavBar() {
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 h-11 border-b border-zwn-border bg-zwn-bg">
-      <span className="text-zwn-teal text-sm font-semibold tracking-widest">ZWN</span>
+      <span className="text-zwn-teal text-sm font-semibold tracking-widest">ZWM</span>
       <div className="flex gap-8">
         {LINKS.map(({ href, label }) => {
           const active =
