@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: cd frontend && npm ci
+      - run: cd frontend && npm run build
+
+  indexer-typecheck:
+    name: Indexer TypeScript Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: zuup-zwm-indexer/package-lock.json
+      - run: cd zuup-zwm-indexer && npm ci
+      - run: cd zuup-zwm-indexer && npx tsc --noEmit
+
+  indexer-test:
+    name: Indexer Tests (Fixture Mode)
+    runs-on: ubuntu-latest
+    env:
+      FIXTURE_MODE: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: zuup-zwm-indexer/package-lock.json
+      - run: cd zuup-zwm-indexer && npm ci
+      - run: cd zuup-zwm-indexer && npm test

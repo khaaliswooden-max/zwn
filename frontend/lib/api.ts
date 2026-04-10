@@ -26,7 +26,7 @@ export async function getWorldState(entityId: string) {
       `/enterprise/world-state/${encodeURIComponent(entityId)}`
     );
   } catch {
-    return mock.getMockWorldState(entityId);
+    return { ...mock.getMockWorldState(entityId), _demo: true };
   }
 }
 
@@ -36,7 +36,7 @@ export async function getCompositeRisk(entityId: string) {
       `/enterprise/risk/${encodeURIComponent(entityId)}`
     );
   } catch {
-    return mock.getMockRisk(entityId);
+    return { ...mock.getMockRisk(entityId), _demo: true };
   }
 }
 
@@ -46,7 +46,7 @@ export async function getCausalChain(eventId: string) {
       `/enterprise/causal-chain/${encodeURIComponent(eventId)}`
     );
   } catch {
-    return mock.MOCK_CAUSAL_CHAIN;
+    return mock.MOCK_CAUSAL_CHAIN.map((item) => ({ ...item, _demo: true }));
   }
 }
 

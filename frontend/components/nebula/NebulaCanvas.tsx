@@ -239,8 +239,11 @@ export default function NebulaCanvas({ height }: Props) {
 
       <NebulaHUD selected={selected} onClose={() => setSelected(null)} />
 
-      <div className="absolute bottom-2 left-4 text-[9px] text-zwn-muted/50 tracking-widest">
-        press C to trigger causal flow
+      <div className="absolute bottom-2 left-4 flex items-center gap-4 text-[9px] text-zwn-muted/50 tracking-widest">
+        <span className="px-1.5 py-0.5 rounded bg-zwn-amber/10 text-zwn-amber/70 border border-zwn-amber/15">
+          SEEDED DEMO
+        </span>
+        <span>press C to trigger causal flow</span>
       </div>
     </div>
   );
