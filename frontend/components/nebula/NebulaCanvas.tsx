@@ -17,7 +17,7 @@ import { SelectedCluster, CausalAnimation } from '@/lib/nebula/types';
 import { hexToRgb } from '@/lib/nebula/gaussian-math';
 import { SUBSTRATE_COLORS } from '@/lib/constants';
 
-// ── Camera focus animation helper ────────────────────────────────────────────
+// ── Camera focus animation (runs inside R3F loop, no React state) ────────────
 
 function CameraAnimator({
   target,
@@ -43,7 +43,7 @@ function CameraAnimator({
     }
 
     progress.current = Math.min(1, progress.current + 0.02);
-    const t = 1 - Math.pow(1 - progress.current, 3); // ease-out cubic
+    const t = 1 - Math.pow(1 - progress.current, 3);
 
     const targetVec = new THREE.Vector3(...target);
     const dir = targetVec.clone().sub(startPos.current).normalize();
@@ -61,25 +61,14 @@ function CameraAnimator({
   return null;
 }
 
-// ── Time tracker (runs inside Canvas) ────────────────────────────────────────
-
-function TimeTracker({ onTime }: { onTime: (t: number) => void }) {
-  const elapsed = useRef(0);
-  useFrame((_, delta) => {
-    elapsed.current += delta;
-    onTime(elapsed.current);
-  });
-  return null;
-}
-
-// ── Causal animation manager ─────────────────────────────────────────────────
+// ── Causal animation manager (runs inside R3F loop) ──────────────────────────
 
 function CausalAnimManager({
-  animations,
-  onUpdate,
+  animsRef,
+  setAnims,
 }: {
-  animations: CausalAnimation[];
-  onUpdate: (updated: CausalAnimation[]) => void;
+  animsRef: React.RefObject<CausalAnimation[]>;
+  setAnims: (anims: CausalAnimation[]) => void;
 }) {
   const prevTime = useRef(performance.now());
 
@@ -88,15 +77,24 @@ function CausalAnimManager({
     const delta = now - prevTime.current;
     prevTime.current = now;
 
-    if (animations.length === 0) return;
+    const animations = animsRef.current;
+    if (!animations || animations.length === 0) return;
 
     const next: CausalAnimation[] = [];
+    let changed = false;
     for (const anim of animations) {
       const updated = advanceCausalAnimation(anim, delta);
-      if (updated) next.push(updated);
+      if (updated) {
+        next.push(updated);
+        if (updated.phase !== anim.phase || updated.progress !== anim.progress) {
+          changed = true;
+        }
+      } else {
+        changed = true;
+      }
     }
-    if (next.length !== animations.length || next.some((a, i) => a.phase !== animations[i].phase || a.progress !== animations[i].progress)) {
-      onUpdate(next);
+    if (changed) {
+      setAnims(next);
     }
   });
 
@@ -112,8 +110,9 @@ interface Props {
 export default function NebulaCanvas({ height }: Props) {
   const [selected, setSelected] = useState<SelectedCluster | null>(null);
   const [focusTarget, setFocusTarget] = useState<[number, number, number] | null>(null);
-  const [time, setTime] = useState(0);
   const [causalAnims, setCausalAnims] = useState<CausalAnimation[]>([]);
+  const causalAnimsRef = useRef(causalAnims);
+  causalAnimsRef.current = causalAnims;
 
   const clusters = useMemo(() => buildClusters(), []);
   const edges = useMemo(() => getEdges(), []);
@@ -138,7 +137,6 @@ export default function NebulaCanvas({ height }: Props) {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'c' || e.key === 'C') {
-        // Animate from first ComplianceState to first ProcurementState
         const source = clusters.find((c) => c.nodeType === 'ComplianceState');
         const target = clusters.find((c) => c.nodeType === 'ProcurementState');
         if (source && target) {
@@ -173,18 +171,16 @@ export default function NebulaCanvas({ height }: Props) {
       >
         <color attach="background" args={['#0a0a0a']} />
 
-        <TimeTracker onTime={setTime} />
         <CameraAnimator target={focusTarget} onDone={handleFocusDone} />
         <CausalAnimManager
-          animations={causalAnims}
-          onUpdate={setCausalAnims}
+          animsRef={causalAnimsRef}
+          setAnims={setCausalAnims}
         />
 
         <GaussianSplatRenderer
           clusters={clusters}
           causalAnimations={causalAnims}
           selectedClusterId={selected?.nodeId ?? null}
-          time={time}
         />
 
         <EdgeLines edges={edges} clusters={clusters} />
@@ -211,7 +207,6 @@ export default function NebulaCanvas({ height }: Props) {
 
       <NebulaHUD selected={selected} onClose={() => setSelected(null)} />
 
-      {/* Keyboard hint */}
       <div className="absolute bottom-2 left-4 text-[9px] text-zwn-muted/50 tracking-widest">
         press C to trigger causal flow
       </div>

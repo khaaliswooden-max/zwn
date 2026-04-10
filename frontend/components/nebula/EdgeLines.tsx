@@ -16,70 +16,58 @@ interface Props {
 }
 
 export default function EdgeLines({ edges, clusters }: Props) {
-  const centerMap = useMemo(() => {
-    const map = new Map<string, [number, number, number]>();
+  const { hasStateGeo, causalGeo } = useMemo(() => {
+    const centerMap = new Map<string, [number, number, number]>();
     for (const c of clusters) {
-      map.set(c.nodeId, c.center);
+      centerMap.set(c.nodeId, c.center);
     }
-    return map;
-  }, [clusters]);
 
-  const lineSegments = useMemo(() => {
-    const hasState: { points: Float32Array }[] = [];
-    const causal: { points: Float32Array }[] = [];
+    const hasStatePoints: number[] = [];
+    const causalPoints: number[] = [];
 
     for (const edge of edges) {
       const src = centerMap.get(edge.source);
       const tgt = centerMap.get(edge.target);
       if (!src || !tgt) continue;
 
-      const pts = new Float32Array([
-        src[0], src[1], src[2],
-        tgt[0], tgt[1], tgt[2],
-      ]);
+      const arr = edge.type === 'CAUSED_BY' || edge.type === 'EMITTED'
+        ? causalPoints
+        : hasStatePoints;
 
-      if (edge.type === 'CAUSED_BY' || edge.type === 'EMITTED') {
-        causal.push({ points: pts });
-      } else {
-        hasState.push({ points: pts });
-      }
+      arr.push(src[0], src[1], src[2], tgt[0], tgt[1], tgt[2]);
     }
 
-    return { hasState, causal };
-  }, [edges, centerMap]);
+    const hsGeo = new THREE.BufferGeometry();
+    if (hasStatePoints.length > 0) {
+      hsGeo.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute(hasStatePoints, 3),
+      );
+    }
+
+    const cGeo = new THREE.BufferGeometry();
+    if (causalPoints.length > 0) {
+      cGeo.setAttribute(
+        'position',
+        new THREE.Float32BufferAttribute(causalPoints, 3),
+      );
+    }
+
+    return { hasStateGeo: hsGeo, causalGeo: cGeo };
+  }, [edges, clusters]);
 
   return (
     <group>
-      {/* HAS_STATE edges: white, subtle */}
-      {lineSegments.hasState.map((seg, i) => {
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(seg.points, 3));
-        return (
-          <lineSegments key={`hs-${i}`} geometry={geo}>
-            <lineBasicMaterial
-              color="#ffffff"
-              transparent
-              opacity={0.12}
-              linewidth={1}
-            />
-          </lineSegments>
-        );
-      })}
-      {/* Causal edges: coral, prominent */}
-      {lineSegments.causal.map((seg, i) => {
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(seg.points, 3));
-        return (
-          <lineSegments key={`ca-${i}`} geometry={geo}>
-            <lineBasicMaterial
-              color="#D85A30"
-              transparent
-              opacity={0.5}
-              linewidth={1}
-            />
-          </lineSegments>
-        );
-      })}
+      {hasStateGeo.attributes.position && (
+        <lineSegments geometry={hasStateGeo}>
+          <lineBasicMaterial color="#ffffff" transparent opacity={0.12} />
+        </lineSegments>
+      )}
+      {causalGeo.attributes.position && (
+        <lineSegments geometry={causalGeo}>
+          <lineBasicMaterial color="#D85A30" transparent opacity={0.5} />
+        </lineSegments>
+      )}
     </group>
   );
 }
