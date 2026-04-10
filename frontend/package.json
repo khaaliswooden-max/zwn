@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@react-three/fiber": "^9.5.0",
+    "@solana/web3.js": "^1.98.4",
     "next": "^16.2.3",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",

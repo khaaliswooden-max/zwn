@@ -5,13 +5,59 @@ import { queryCache } from './query-cache';
 import { getDeadLetterQueue, clearDeadLetterQueue } from '../causal/propagation-engine';
 import { metrics } from '../lib/metrics';
 
+// ─── CORS ───────────────────────────────────────────────────────────────────
+
+const ALLOWED_ORIGINS = (process.env['CORS_ALLOWED_ORIGINS'] ?? '*')
+  .split(',')
+  .map((o) => o.trim());
+
+function corsOrigin(req: IncomingMessage): string {
+  const origin = req.headers['origin'] ?? '';
+  if (ALLOWED_ORIGINS.includes('*')) return '*';
+  if (ALLOWED_ORIGINS.includes(origin)) return origin;
+  return '';
+}
+
+// ─── Rate limiter (in-memory token bucket, per API key) ─────────────────────
+
+const RATE_LIMIT_MAX = parseInt(process.env['RATE_LIMIT_MAX'] ?? '100', 10);
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+const rateBuckets = new Map<string, { tokens: number; lastRefill: number }>();
+
+function checkRateLimit(key: string): boolean {
+  const now = Date.now();
+  let bucket = rateBuckets.get(key);
+  if (!bucket) {
+    bucket = { tokens: RATE_LIMIT_MAX, lastRefill: now };
+    rateBuckets.set(key, bucket);
+  }
+  const elapsed = now - bucket.lastRefill;
+  if (elapsed >= RATE_LIMIT_WINDOW_MS) {
+    bucket.tokens = RATE_LIMIT_MAX;
+    bucket.lastRefill = now;
+  }
+  if (bucket.tokens <= 0) return false;
+  bucket.tokens--;
+  return true;
+}
+
+// Clean stale buckets every 5 minutes
+setInterval(() => {
+  const cutoff = Date.now() - RATE_LIMIT_WINDOW_MS * 5;
+  for (const [key, bucket] of rateBuckets) {
+    if (bucket.lastRefill < cutoff) rateBuckets.delete(key);
+  }
+}, 5 * 60_000);
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function sendJson(res: ServerResponse, status: number, data: unknown): void {
+function sendJson(res: ServerResponse, status: number, data: unknown, req?: IncomingMessage): void {
   const body = JSON.stringify(data);
+  const origin = req ? corsOrigin(req) : '*';
   res.writeHead(status, {
     'Content-Type': 'application/json',
-    'Access-Control-Allow-Origin': '*',
+    ...(origin ? { 'Access-Control-Allow-Origin': origin } : {}),
     'Access-Control-Allow-Headers': 'X-ZWM-API-Key, Content-Type',
   });
   res.end(body);
@@ -614,8 +660,9 @@ export async function startEnterpriseApi(driver: Driver): Promise<void> {
 
     // CORS preflight
     if (method === 'OPTIONS') {
+      const origin = corsOrigin(req);
       res.writeHead(204, {
-        'Access-Control-Allow-Origin': '*',
+        ...(origin ? { 'Access-Control-Allow-Origin': origin } : {}),
         'Access-Control-Allow-Headers': 'X-ZWM-API-Key, Content-Type',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       });
@@ -667,6 +714,13 @@ export async function startEnterpriseApi(driver: Driver): Promise<void> {
 
       // All other enterprise routes require a valid API key
       if (!requireApiKey(req, res)) return;
+
+      // Rate limiting (per API key, 100 req/min default)
+      const apiKey = req.headers['x-zwm-api-key'] as string;
+      if (!checkRateLimit(apiKey)) {
+        sendJson(res, 429, { error: 'Rate limit exceeded. Try again in 60 seconds.' }, req);
+        return;
+      }
 
       // GET /enterprise/world-state/:entityId
       const entityId = pathParam(url, '/enterprise/world-state/');

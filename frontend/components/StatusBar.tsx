@@ -1,21 +1,53 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+import { Connection } from '@solana/web3.js';
 import { PROGRAM_ID } from '@/lib/constants';
 
-const BASE_SLOT = 320_000_000;
-const BASE_TPS = 2_740;
+const SOLANA_RPC =
+  process.env.NEXT_PUBLIC_SOLANA_RPC ?? 'https://api.devnet.solana.com';
+const POLL_INTERVAL_MS = 4_000;
 
 export default function StatusBar() {
-  const [slot, setSlot] = useState(BASE_SLOT);
-  const [tps, setTps] = useState(BASE_TPS);
+  const [slot, setSlot] = useState<number | null>(null);
+  const [tps, setTps] = useState<number | null>(null);
+  const [stale, setStale] = useState(false);
+  const connRef = useRef<Connection | null>(null);
 
   useEffect(() => {
-    const id = setInterval(() => {
-      setSlot((s) => s + 1);
-      setTps(Math.floor(2600 + Math.random() * 400));
-    }, 400);
-    return () => clearInterval(id);
+    const conn = new Connection(SOLANA_RPC);
+    connRef.current = conn;
+
+    let mounted = true;
+    let consecutiveFailures = 0;
+
+    async function poll() {
+      if (!mounted) return;
+      try {
+        const [currentSlot, perfSamples] = await Promise.all([
+          conn.getSlot(),
+          conn.getRecentPerformanceSamples(1),
+        ]);
+        if (!mounted) return;
+        setSlot(currentSlot);
+        if (perfSamples.length > 0) {
+          const s = perfSamples[0];
+          setTps(Math.round(s.numTransactions / s.samplePeriodSecs));
+        }
+        setStale(false);
+        consecutiveFailures = 0;
+      } catch {
+        consecutiveFailures++;
+        if (consecutiveFailures >= 3) setStale(true);
+      }
+    }
+
+    poll();
+    const id = setInterval(poll, POLL_INTERVAL_MS);
+    return () => {
+      mounted = false;
+      clearInterval(id);
+    };
   }, []);
 
   return (
@@ -23,18 +55,32 @@ export default function StatusBar() {
       {/* Pulsing live dot */}
       <span className="flex items-center gap-1.5">
         <span className="relative flex h-1.5 w-1.5">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-zwn-teal opacity-75" />
-          <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-zwn-teal" />
+          <span
+            className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+              stale ? 'bg-zwn-amber' : 'bg-zwn-teal'
+            }`}
+          />
+          <span
+            className={`relative inline-flex rounded-full h-1.5 w-1.5 ${
+              stale ? 'bg-zwn-amber' : 'bg-zwn-teal'
+            }`}
+          />
         </span>
-        DEVNET
+        {stale ? 'STALE' : 'DEVNET'}
       </span>
 
       <span>
-        slot <span className="text-zwn-text">{slot.toLocaleString()}</span>
+        slot{' '}
+        <span className="text-zwn-text">
+          {slot !== null ? slot.toLocaleString() : '---'}
+        </span>
       </span>
 
       <span>
-        <span className="text-zwn-text">{tps.toLocaleString()}</span> TPS
+        <span className="text-zwn-text">
+          {tps !== null ? tps.toLocaleString() : '---'}
+        </span>{' '}
+        TPS
       </span>
 
       <span className="hidden sm:inline truncate max-w-[260px]">

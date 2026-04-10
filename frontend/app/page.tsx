@@ -2,7 +2,20 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import dynamic from 'next/dynamic';
 import { RECENT_ENTITY_IDS } from '@/lib/mock';
+import { ZWM_API_BASE } from '@/lib/constants';
+import DemoBadge from '@/components/DemoBadge';
+
+const WorldCanvas = dynamic(() => import('@/components/WorldCanvas'), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-full flex items-center justify-center text-zwn-muted text-[11px] tracking-widest bg-zwn-bg">
+      loading world model...
+    </div>
+  ),
+});
 
 const STORAGE_KEY = 'zwn_recent_entities';
 const MAX_RECENT = 5;
@@ -27,11 +40,15 @@ export default function HomePage() {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [recent, setRecent] = useState<string[]>([]);
+  const [backendUp, setBackendUp] = useState<boolean | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setRecent(getRecentEntities());
-    inputRef.current?.focus();
+
+    fetch(`${ZWM_API_BASE}/health`, { method: 'GET' })
+      .then((r) => setBackendUp(r.ok))
+      .catch(() => setBackendUp(false));
   }, []);
 
   const navigate = (id: string) => {
@@ -46,48 +63,74 @@ export default function HomePage() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] px-6">
-      <div className="w-full max-w-sm space-y-8">
-        {/* Wordmark */}
-        <div className="text-center space-y-1">
-          <div className="text-[9px] text-zwn-muted tracking-[0.3em]">ZUUP WORLD MODEL</div>
-          <div className="text-2xl text-zwn-teal font-semibold tracking-widest">ZWM</div>
-        </div>
+    <div className="flex flex-col">
+      {/* Hero: World Canvas */}
+      <div className="w-full" style={{ height: '60vh' }}>
+        <WorldCanvas height={undefined} />
+      </div>
 
-        {/* Search */}
-        <form onSubmit={handleSubmit} className="space-y-2">
-          <div className="text-[9px] text-zwn-muted tracking-widest text-center mb-3">
-            search entity →
-          </div>
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="entity-id"
-            autoComplete="off"
-            className="w-full bg-zwn-surface border border-zwn-border rounded px-4 py-3 text-[13px] text-zwn-text placeholder-zwn-border outline-none focus:border-zwn-teal transition-colors text-center"
-          />
-          <button type="submit" className="sr-only">search</button>
-        </form>
+      {/* Tagline */}
+      <div className="text-center px-6 py-10 space-y-3">
+        <h1 className="text-[28px] font-bold text-zwn-text" style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}>
+          The institutional world model.
+        </h1>
+        <p className="text-[22px] text-zwn-muted font-mono">
+          Nine substrates. One causal graph. Live on Solana.
+        </p>
+        <Link
+          href="/build"
+          className="inline-block text-[22px] font-bold font-mono hover:opacity-80 transition-opacity"
+          style={{ color: '#1A1A2E' }}
+        >
+          <span className="text-zwn-teal">Access the ZWM &rarr;</span>
+        </Link>
+      </div>
 
-        {/* Recent */}
-        {recent.length > 0 && (
-          <div className="space-y-2">
-            <div className="text-[9px] text-zwn-border tracking-widest text-center">recent</div>
-            <div className="space-y-1">
-              {recent.map((id) => (
-                <button
-                  key={id}
-                  onClick={() => navigate(id)}
-                  className="w-full text-left text-[11px] text-zwn-muted hover:text-zwn-text px-3 py-1.5 rounded hover:bg-zwn-surface transition-colors"
-                >
-                  {id}
-                </button>
-              ))}
+      {/* Search + Recent */}
+      <div className="flex flex-col items-center px-6 pb-16">
+        <div className="w-full max-w-sm space-y-8">
+          {/* Demo mode indicator */}
+          {backendUp === false && (
+            <div className="flex justify-center">
+              <DemoBadge />
             </div>
-          </div>
-        )}
+          )}
+
+          {/* Search */}
+          <form onSubmit={handleSubmit} className="space-y-2">
+            <div className="text-[9px] text-zwn-muted tracking-widest text-center mb-3">
+              search entity &rarr;
+            </div>
+            <input
+              ref={inputRef}
+              type="text"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="entity-id"
+              autoComplete="off"
+              className="w-full bg-zwn-surface border border-zwn-border rounded px-4 py-3 text-[13px] text-zwn-text placeholder-zwn-border outline-none focus:border-zwn-teal transition-colors text-center"
+            />
+            <button type="submit" className="sr-only">search</button>
+          </form>
+
+          {/* Recent */}
+          {recent.length > 0 && (
+            <div className="space-y-2">
+              <div className="text-[9px] text-zwn-border tracking-widest text-center">recent</div>
+              <div className="space-y-1">
+                {recent.map((id) => (
+                  <button
+                    key={id}
+                    onClick={() => navigate(id)}
+                    className="w-full text-left text-[11px] text-zwn-muted hover:text-zwn-text px-3 py-1.5 rounded hover:bg-zwn-surface transition-colors"
+                  >
+                    {id}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

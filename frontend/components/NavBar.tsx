@@ -5,9 +5,9 @@ import { usePathname } from 'next/navigation';
 
 const LINKS = [
   { href: '/', label: 'WORLD' },
+  { href: '/substrates', label: 'SUBSTRATES' },
   { href: '/graph', label: 'GRAPH' },
-  { href: '/console', label: 'CONSOLE' },
-  { href: '/ingest', label: 'INGEST' },
+  { href: '/build', label: 'BUILD' },
 ];
 
 export default function NavBar() {

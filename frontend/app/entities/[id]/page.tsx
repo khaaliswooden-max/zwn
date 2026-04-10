@@ -7,6 +7,7 @@ import { getMockWorldState, MOCK_CAUSAL_CHAIN } from '@/lib/mock';
 import EntityCard from '@/components/EntityCard';
 import SubstrateGrid from '@/components/SubstrateGrid';
 import CausalChain from '@/components/CausalChain';
+import DemoBadge from '@/components/DemoBadge';
 
 interface WorldState {
   actor?: { id: string; created_at?: number; last_seen?: number };
@@ -51,6 +52,7 @@ export default function EntityPage({
   const [worldState, setWorldState] = useState<WorldState | null>(null);
   const [causalChain, setCausalChain] = useState<CausalLink[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
     addRecent(entityId);
@@ -58,6 +60,7 @@ export default function EntityPage({
     void (async () => {
       try {
         const ws = await getWorldState(entityId);
+        if ((ws as Record<string, unknown>)._demo) setIsDemo(true);
         // Merge mock risk since enterprise API may not return it inline
         const mockData = getMockWorldState(entityId);
         setWorldState({
@@ -96,6 +99,16 @@ export default function EntityPage({
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-8 space-y-6">
+      {/* Demo indicator */}
+      {isDemo && (
+        <div className="flex items-center gap-2">
+          <DemoBadge />
+          <span className="text-[9px] text-zwn-muted tracking-widest">
+            backend not connected — showing seeded data
+          </span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link
