@@ -2,6 +2,7 @@
   "private": true,
   "name": "zwn",
   "scripts": {
-    "build": "cd frontend && npm install && npm run build"
+    "build": "cd frontend && npm install && npm run build",
+    "daily-brief": "cd zwm-daily && node zwm-daily.mjs"
   }
 }
