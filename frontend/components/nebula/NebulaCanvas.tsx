@@ -17,6 +17,7 @@ import { SelectedCluster, CausalAnimation } from '@/lib/nebula/types';
 import { hexToRgb } from '@/lib/nebula/gaussian-math';
 import { SUBSTRATE_COLORS } from '@/lib/constants';
 import { supportsVolumetric } from '@/lib/nebula/capabilities';
+import { useAutoplay } from '@/lib/nebula/use-autoplay';
 
 // ── OrbitControls (inline to avoid @react-three/drei dependency weight) ──────
 
@@ -200,6 +201,12 @@ export default function NebulaCanvas({ height }: Props) {
     return () => window.removeEventListener('keydown', handler);
   }, [clusters]);
 
+  const addAnimation = useCallback((anim: CausalAnimation) => {
+    setCausalAnims((prev) => [...prev, anim]);
+  }, []);
+
+  useAutoplay(clusters, addAnimation);
+
   return (
     <div className="relative w-full h-full bg-zwn-bg">
       <Canvas
@@ -255,7 +262,7 @@ export default function NebulaCanvas({ height }: Props) {
         <span className="px-1.5 py-0.5 rounded bg-zwn-amber/10 text-zwn-amber/70 border border-zwn-amber/15">
           SEEDED DEMO
         </span>
-        <span>press C to trigger causal flow</span>
+        <span>causal flow · auto</span>
       </div>
     </div>
   );
