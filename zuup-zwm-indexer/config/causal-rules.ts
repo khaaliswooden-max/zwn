@@ -56,12 +56,15 @@ export const CAUSAL_RULES: CausalRule[] = [
     id: 'symbion-anomaly-podx',
     trigger: 'BIOLOGICAL_ANOMALY',
     source: 'symbion',
-    condition: (p) => p['severity'] === 'HIGH',
+    // Fire if NN detects anomaly (preferred) OR original on-chain severity is HIGH (fallback)
+    condition: (p) => p['nnIsAnomaly'] === true || p['severity'] === 'HIGH',
     effect: 'PRIORITIZE_COMPUTE',
     targetEnvKey: 'PODX_INGEST_URL',
     effectParams: (p, eventId) => ({
       subjectId: p['subjectId'],
       priority: 'CRITICAL',
+      anomalyScore: p['anomalyScore'] ?? null,
+      detectionSource: p['nnIsAnomaly'] != null ? 'nn_vae' : 'on_chain_threshold',
       triggerEventId: eventId,
     }),
   },
@@ -69,13 +72,39 @@ export const CAUSAL_RULES: CausalRule[] = [
     id: 'symbion-anomaly-veyra',
     trigger: 'BIOLOGICAL_ANOMALY',
     source: 'symbion',
-    condition: (p) => p['severity'] === 'HIGH',
+    // Fire if NN detects anomaly (preferred) OR original on-chain severity is HIGH (fallback)
+    condition: (p) => p['nnIsAnomaly'] === true || p['severity'] === 'HIGH',
     effect: 'TRIGGER_REASONING',
     targetEnvKey: 'VEYRA_INGEST_URL',
     timeoutMs: 30_000,  // reasoning takes longer
     effectParams: (p, eventId) => ({
       context: 'BIOLOGICAL_ANOMALY_HIGH',
       subjectId: p['subjectId'],
+      anomalyScore: p['anomalyScore'] ?? null,
+      detectionSource: p['nnIsAnomaly'] != null ? 'nn_vae' : 'on_chain_threshold',
+      triggerEventId: eventId,
+    }),
+  },
+  {
+    // NEW: NN-detected subtle anomaly (score > 0.7 but on-chain severity is not HIGH)
+    // Triggers Veyra reasoning for early warning — catches anomalies that
+    // the on-chain 3-sigma threshold would miss.
+    id: 'symbion-nn-early-warning-veyra',
+    trigger: 'BIOLOGICAL_ANOMALY',
+    source: 'symbion',
+    condition: (p) =>
+      typeof p['anomalyScore'] === 'number' &&
+      (p['anomalyScore'] as number) > 0.7 &&
+      p['severity'] !== 'HIGH',
+    effect: 'TRIGGER_REASONING',
+    targetEnvKey: 'VEYRA_INGEST_URL',
+    timeoutMs: 30_000,
+    effectParams: (p, eventId) => ({
+      context: 'BIOLOGICAL_ANOMALY_NN_EARLY_WARNING',
+      subjectId: p['subjectId'],
+      anomalyScore: p['anomalyScore'],
+      onChainSeverity: p['severity'],
+      detectionSource: 'nn_vae',
       triggerEventId: eventId,
     }),
   },

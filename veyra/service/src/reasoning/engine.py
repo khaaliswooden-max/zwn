@@ -155,11 +155,31 @@ def _build_prompt(
     params: dict[str, Any],
 ) -> str:
     if context_type == "BIOLOGICAL_ANOMALY_HIGH":
+        anomaly_score = params.get("anomalyScore")
+        detection_src = params.get("detectionSource", "on_chain_threshold")
+        nn_context = ""
+        if anomaly_score is not None:
+            nn_context = (
+                f" The neural network anomaly detector (VAE, source: {detection_src}) "
+                f"scored this reading at {anomaly_score:.4f} (0.0 = normal, 1.0 = extreme anomaly)."
+            )
         question = (
             f"A HIGH-severity biological anomaly has been detected for subject "
-            f"'{params.get('subjectId', 'unknown')}'. "
+            f"'{params.get('subjectId', 'unknown')}'.{nn_context} "
             "Review the ZWM world state context above. Provide your assessment of the risk "
             "and the immediate actions that should be taken."
+        )
+    elif context_type == "BIOLOGICAL_ANOMALY_NN_EARLY_WARNING":
+        anomaly_score = params.get("anomalyScore", "?")
+        on_chain = params.get("onChainSeverity", "UNKNOWN")
+        question = (
+            f"EARLY WARNING: The neural network anomaly detector (VAE) has flagged subject "
+            f"'{params.get('subjectId', 'unknown')}' with an anomaly score of {anomaly_score} "
+            f"(0.0 = normal, 1.0 = extreme). The on-chain severity threshold reports '{on_chain}' — "
+            "the NN is detecting a pattern the static threshold would miss. "
+            "Review the ZWM world state context above. Assess whether this is a genuine "
+            "emerging anomaly requiring intervention or a false positive. If genuine, "
+            "recommend preemptive actions before the situation escalates to HIGH severity."
         )
     elif context_type == "COMPUTE_DEGRADATION":
         avail = params.get("availability")
