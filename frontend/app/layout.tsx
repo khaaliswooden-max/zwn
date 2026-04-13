@@ -6,6 +6,9 @@ import StatusBar from '@/components/StatusBar';
 export const metadata: Metadata = {
   title: 'ZWM — Zuup World Model',
   description: 'Zuup World Model developer portal',
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({

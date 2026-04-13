@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Outer circle ring -->
+  <circle cx="32" cy="32" r="30" fill="none" stroke="#f0ece4" stroke-width="1.5"/>
+  <!-- Inner rounded square -->
+  <rect x="12" y="12" width="40" height="40" rx="6" ry="6" fill="none" stroke="#f0ece4" stroke-width="1.5"/>
+  <!-- Purple ring -->
+  <circle cx="32" cy="32" r="14" fill="none" stroke="#7F77DD" stroke-width="3"/>
+  <!-- Inner cream ring -->
+  <circle cx="32" cy="32" r="8" fill="none" stroke="#f0ece4" stroke-width="1.2"/>
+  <!-- Innermost cream ring -->
+  <circle cx="32" cy="32" r="3.5" fill="none" stroke="#f0ece4" stroke-width="1"/>
+  <!-- Teal accent dot -->
+  <circle cx="44" cy="44" r="4" fill="#1D9E75"/>
+</svg>
