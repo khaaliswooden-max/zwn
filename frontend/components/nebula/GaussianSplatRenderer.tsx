@@ -1,14 +1,95 @@
 'use client';
 
-import { useRef, useMemo, useCallback } from 'react';
+import { useRef, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ClusterDescriptor, GaussianParams, CausalAnimation } from '@/lib/nebula/types';
 import { computeDepthOrder, reorderBuffer } from '@/lib/nebula/depth-sort';
+import { SIMPLEX_NOISE_3D, FBM_3D } from '@/lib/nebula/noise.glsl';
+import { supportsVolumetric } from '@/lib/nebula/capabilities';
 
-// ── Shaders ──────────────────────────────────────────────────────────────────
+// ── Volumetric Shaders (Tier 2 — WebGL2+) ──────────────────────────────────
 
-const VERT_SHADER = /* glsl */ `
+const VERT_VOLUMETRIC = /* glsl */ `
+precision highp float;
+
+attribute vec3 instancePosition;
+attribute vec3 instanceScale;
+attribute vec4 instanceColor;
+attribute float instanceIntensity;
+
+uniform float uTime;
+
+varying vec2 vUv;
+varying vec4 vColor;
+varying float vIntensity;
+varying vec3 vWorldPos;
+
+void main() {
+  vUv = position.xy;
+  vColor = instanceColor;
+  vIntensity = instanceIntensity;
+
+  vec3 camRight = vec3(viewMatrix[0][0], viewMatrix[1][0], viewMatrix[2][0]);
+  vec3 camUp    = vec3(viewMatrix[0][1], viewMatrix[1][1], viewMatrix[2][1]);
+
+  float sx = instanceScale.x * 3.0;
+  float sy = instanceScale.y * 3.0;
+
+  vec3 worldPos = instancePosition
+    + camRight * position.x * sx
+    + camUp    * position.y * sy;
+
+  vWorldPos = instancePosition;
+
+  gl_Position = projectionMatrix * viewMatrix * vec4(worldPos, 1.0);
+}
+`;
+
+const FRAG_VOLUMETRIC = /* glsl */ `
+precision highp float;
+
+${SIMPLEX_NOISE_3D}
+${FBM_3D}
+
+uniform float uTime;
+uniform float uTurbulenceSpeed;
+
+varying vec2 vUv;
+varying vec4 vColor;
+varying float vIntensity;
+varying vec3 vWorldPos;
+
+void main() {
+  float d2 = dot(vUv, vUv);
+  if (d2 > 1.0) discard;
+
+  // Sample 3D noise at world position offset by time
+  float n = fbm(vWorldPos * 3.0 + uTime * uTurbulenceSpeed * 0.15);
+
+  // Volumetric Gaussian falloff modulated by noise
+  float g = exp(-4.5 * d2);
+  float volumetric = g * (0.6 + 0.4 * n);
+
+  // Inner core glow — bright concentrated center
+  float core = exp(-12.0 * d2) * vIntensity * 1.5;
+
+  // Outer halo — soft light scatter
+  float halo = exp(-1.5 * d2) * 0.15;
+
+  // Combine layers
+  float shape = max(volumetric, 0.0) + core + halo;
+  float alpha = shape * vColor.a * vIntensity;
+  vec3 color = vColor.rgb * vIntensity * (max(volumetric, 0.0) + core * 2.0)
+             + vColor.rgb * halo * 0.5;
+
+  gl_FragColor = vec4(color * alpha, alpha);
+}
+`;
+
+// ── Fallback Shaders (WebGL1) ───────────────────────────────────────────────
+
+const VERT_BASIC = /* glsl */ `
 precision highp float;
 
 attribute vec3 instancePosition;
@@ -39,7 +120,7 @@ void main() {
 }
 `;
 
-const FRAG_SHADER = /* glsl */ `
+const FRAG_BASIC = /* glsl */ `
 precision highp float;
 
 varying vec2 vUv;
@@ -58,7 +139,25 @@ void main() {
 }
 `;
 
-// ── Component ────────────────────────────────────────────────────────────────
+// ── Turbulence speed per risk level ─────────────────────────────────────────
+
+const TURBULENCE_MAP: Record<string, number> = {
+  LOW: 0.3,
+  MEDIUM: 0.6,
+  HIGH: 1.0,
+  CRITICAL: 1.8,
+};
+
+function getDominantTurbulence(clusters: ClusterDescriptor[]): number {
+  let maxTurb = 0.3;
+  for (const c of clusters) {
+    const t = TURBULENCE_MAP[c.riskLevel] ?? 0.3;
+    if (t > maxTurb) maxTurb = t;
+  }
+  return maxTurb;
+}
+
+// ── Component ───────────────────────────────────────────────────────────────
 
 interface Props {
   clusters: ClusterDescriptor[];
@@ -74,6 +173,7 @@ export default function GaussianSplatRenderer({
   const meshRef = useRef<THREE.Mesh>(null);
   const { camera } = useThree();
   const lastSortCamPos = useRef(new THREE.Vector3());
+  const volumetric = useRef(supportsVolumetric());
 
   const { geometry, material, totalCount, clusterRanges } = useMemo(() => {
     const allGaussians: GaussianParams[] = [];
@@ -136,9 +236,18 @@ export default function GaussianSplatRenderer({
     geo.setAttribute('instanceColor', colorAttr);
     geo.setAttribute('instanceIntensity', intensityAttr);
 
+    const useVolumetric = volumetric.current;
+    const turbulence = getDominantTurbulence(clusters);
+
     const mat = new THREE.ShaderMaterial({
-      vertexShader: VERT_SHADER,
-      fragmentShader: FRAG_SHADER,
+      vertexShader: useVolumetric ? VERT_VOLUMETRIC : VERT_BASIC,
+      fragmentShader: useVolumetric ? FRAG_VOLUMETRIC : FRAG_BASIC,
+      uniforms: useVolumetric
+        ? {
+            uTime: { value: 0 },
+            uTurbulenceSpeed: { value: turbulence },
+          }
+        : {},
       transparent: true,
       depthWrite: false,
       depthTest: true,
@@ -178,6 +287,11 @@ export default function GaussianSplatRenderer({
     const time = clock.elapsedTime;
     const currentSelected = selectedRef.current;
     const currentCausalAnims = causalRef.current;
+
+    // Update time uniform for volumetric shaders
+    if (volumetric.current && material.uniforms.uTime) {
+      material.uniforms.uTime.value = time;
+    }
 
     const geo = mesh.geometry as THREE.InstancedBufferGeometry;
     const posAttr = geo.getAttribute('instancePosition') as THREE.InstancedBufferAttribute;

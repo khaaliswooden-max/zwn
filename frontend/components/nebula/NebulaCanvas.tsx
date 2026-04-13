@@ -7,6 +7,7 @@ import GaussianSplatRenderer from './GaussianSplatRenderer';
 import ClusterHitMeshes from './ClusterHitMeshes';
 import EdgeLines from './EdgeLines';
 import NebulaHUD from './NebulaHUD';
+import PostFX from './PostFX';
 import { buildClusters, getEdges } from '@/lib/nebula/data-mapper';
 import {
   createCausalAnimation,
@@ -15,6 +16,7 @@ import {
 import { SelectedCluster, CausalAnimation } from '@/lib/nebula/types';
 import { hexToRgb } from '@/lib/nebula/gaussian-math';
 import { SUBSTRATE_COLORS } from '@/lib/constants';
+import { supportsVolumetric } from '@/lib/nebula/capabilities';
 
 // ── OrbitControls (inline to avoid @react-three/drei dependency weight) ──────
 
@@ -207,7 +209,10 @@ export default function NebulaCanvas({ height }: Props) {
           antialias: true,
           alpha: false,
           powerPreference: 'high-performance',
+          toneMapping: THREE.NoToneMapping,
         }}
+        linear
+        flat
         onPointerMissed={handleBackgroundClick}
       >
         <color attach="background" args={['#0a0a0a']} />
@@ -235,6 +240,13 @@ export default function NebulaCanvas({ height }: Props) {
         <SimpleOrbitControls />
 
         <ambientLight intensity={0.15} />
+
+        {supportsVolumetric() && (
+          <PostFX
+            clusters={clusters}
+            selectedClusterId={selected?.nodeId ?? null}
+          />
+        )}
       </Canvas>
 
       <NebulaHUD selected={selected} onClose={() => setSelected(null)} />

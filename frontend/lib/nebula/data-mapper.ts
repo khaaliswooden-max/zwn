@@ -32,13 +32,13 @@ function getClusterConfig(
 ): ClusterConfig {
   switch (nodeType) {
     case 'WorldActor':
-      return { count: 26, scale: 0.35, spread: 0.8, opacity: 0.8, pulseRate: 0.5 };
+      return { count: 40, scale: 0.35, spread: 0.8, opacity: 0.8, pulseRate: 0.5 };
 
     case 'ComplianceState': {
       const score = Number(metrics?.score ?? 50) / 100;
       const isViolation = metrics?.status === 'VIOLATION';
       return {
-        count: 16,
+        count: 28,
         scale: 0.22 + score * 0.15,
         spread: 0.6,
         opacity: 0.3 + score * 0.5,
@@ -48,7 +48,7 @@ function getClusterConfig(
     case 'ProcurementState': {
       const fitiq = Number(metrics?.fitiq ?? 50) / 100;
       return {
-        count: 16,
+        count: 28,
         scale: 0.2 + fitiq * 0.15,
         spread: 0.6,
         opacity: 0.4 + fitiq * 0.4,
@@ -58,7 +58,7 @@ function getClusterConfig(
     case 'BiologicalState': {
       const anomaly = metrics?.anomaly_flag === true;
       return {
-        count: 12,
+        count: 22,
         scale: anomaly ? 0.4 : 0.25,
         spread: 0.55,
         opacity: anomaly ? 0.5 : 0.7,
@@ -68,7 +68,7 @@ function getClusterConfig(
     case 'HistoricalRecon': {
       const conf = Number(metrics?.confidence ?? 0.5);
       return {
-        count: 12,
+        count: 22,
         scale: 0.2 + conf * 0.15,
         spread: 0.5,
         opacity: 0.3 + conf * 0.5,
@@ -78,7 +78,7 @@ function getClusterConfig(
     case 'MigrationState': {
       const pres = Number(metrics?.semantic_preservation ?? 0.5);
       return {
-        count: 12,
+        count: 22,
         scale: 0.2 + pres * 0.15,
         spread: 0.5,
         opacity: 0.4 + pres * 0.4,
@@ -88,7 +88,7 @@ function getClusterConfig(
     case 'ComputeState': {
       const avail = Number(metrics?.availability ?? 0.5);
       return {
-        count: 12,
+        count: 22,
         scale: 0.2 + avail * 0.15,
         spread: 0.5,
         opacity: 0.4 + avail * 0.4,
@@ -96,7 +96,7 @@ function getClusterConfig(
       };
     }
     case 'SubstrateEvent':
-      return { count: 5, scale: 0.15, spread: 0.3, opacity: 0.85, pulseRate: 0 };
+      return { count: 10, scale: 0.15, spread: 0.3, opacity: 0.85, pulseRate: 0 };
 
     default:
       return { count: 8, scale: 0.2, spread: 0.5, opacity: 0.6, pulseRate: 0.3 };
