@@ -18,6 +18,8 @@ const CONSTRAINTS: string[] = [
   'CREATE CONSTRAINT treatyattestation_id IF NOT EXISTS FOR (n:TreatyAttestation) REQUIRE n.id IS UNIQUE',
   'CREATE CONSTRAINT feerecord_id IF NOT EXISTS FOR (n:FeeRecord) REQUIRE n.id IS UNIQUE',
   'CREATE CONSTRAINT scalemetric_id IF NOT EXISTS FOR (n:ScaleMetric) REQUIRE n.id IS UNIQUE',
+  // --- Neural Network layer constraints ---
+  'CREATE CONSTRAINT anomalyscore_id IF NOT EXISTS FOR (n:AnomalyScore) REQUIRE n.id IS UNIQUE',
 ];
 
 const INDEXES: string[] = [
@@ -42,6 +44,9 @@ const INDEXES: string[] = [
   'CREATE INDEX scalemetric_current IF NOT EXISTS FOR (n:ScaleMetric) ON (n.platform, n.is_current)',
   'CREATE INDEX reasoningstate_current IF NOT EXISTS FOR (n:ReasoningState) ON (n.request_id, n.is_current)',
   'CREATE INDEX settlementrecord_entity_ts IF NOT EXISTS FOR (n:SettlementRecord) ON (n.counterparty_id, n.timestamp)',
+  // --- Neural Network layer indexes ---
+  'CREATE INDEX anomalyscore_entity_ts IF NOT EXISTS FOR (n:AnomalyScore) ON (n.entity_id, n.timestamp)',
+  'CREATE INDEX anomalyscore_substrate IF NOT EXISTS FOR (n:AnomalyScore) ON (n.substrate, n.is_anomaly)',
 ];
 
 export async function initDb(driver: Driver): Promise<void> {
