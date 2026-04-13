@@ -1,6 +1,8 @@
 import { GaussianParams } from './types';
 
-/** Generate Gaussians arranged in a sphere around a center point. */
+/** Generate Gaussians arranged in a sphere around a center point.
+ *  Density falloff creates a natural nebula gradient — core is dense and bright,
+ *  outer particles are smaller and dimmer. */
 export function generateSphereCluster(
   center: [number, number, number],
   count: number,
@@ -15,6 +17,12 @@ export function generateSphereCluster(
     const theta = Math.PI * (1 + Math.sqrt(5)) * i; // golden angle
     const r = spread * (0.6 + 0.4 * Math.random());
 
+    // Density falloff: particles closer to center are larger/brighter
+    const normalizedR = r / spread; // 0.6–1.0
+    const densityFactor = 1.0 - (normalizedR - 0.6) / 0.4; // 1.0 at core, 0.0 at edge
+    const scaleMult = 0.7 + 0.6 * densityFactor; // 0.7–1.3
+    const intensityMult = 0.6 + 0.6 * densityFactor; // 0.6–1.2
+
     gaussians.push({
       position: [
         center[0] + r * Math.sin(phi) * Math.cos(theta),
@@ -22,11 +30,11 @@ export function generateSphereCluster(
         center[2] + r * Math.cos(phi),
       ],
       scale: [baseScale, baseScale, baseScale].map(
-        (s) => s * (0.7 + 0.6 * Math.random()),
+        (s) => s * scaleMult * (0.8 + 0.4 * Math.random()),
       ) as [number, number, number],
       color: baseColor,
-      opacity: baseOpacity * (0.6 + 0.4 * Math.random()),
-      intensity: 0.8 + 0.4 * Math.random(),
+      opacity: baseOpacity * (0.5 + 0.5 * densityFactor) * (0.7 + 0.3 * Math.random()),
+      intensity: intensityMult * (0.8 + 0.4 * Math.random()),
     });
   }
   return gaussians;

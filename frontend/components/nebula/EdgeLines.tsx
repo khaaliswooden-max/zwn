@@ -1,8 +1,27 @@
 'use client';
 
 import { useMemo } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ClusterDescriptor } from '@/lib/nebula/types';
+
+// ── Causal edge glow shader ────────────────────────────────────────────────
+
+const CAUSAL_VERT = /* glsl */ `
+void main() {
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+const CAUSAL_FRAG = /* glsl */ `
+uniform float uTime;
+uniform vec3 uColor;
+
+void main() {
+  float pulse = 0.4 + 0.2 * sin(uTime * 2.0);
+  gl_FragColor = vec4(uColor * 1.5, pulse);
+}
+`;
 
 interface EdgeDef {
   source: string;
@@ -56,6 +75,26 @@ export default function EdgeLines({ edges, clusters }: Props) {
     return { hasStateGeo: hsGeo, causalGeo: cGeo };
   }, [edges, clusters]);
 
+  const causalMaterial = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        vertexShader: CAUSAL_VERT,
+        fragmentShader: CAUSAL_FRAG,
+        uniforms: {
+          uTime: { value: 0 },
+          uColor: { value: new THREE.Color('#D85A30') },
+        },
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    [],
+  );
+
+  useFrame(({ clock }) => {
+    causalMaterial.uniforms.uTime.value = clock.elapsedTime;
+  });
+
   return (
     <group>
       {hasStateGeo.attributes.position && (
@@ -64,9 +103,7 @@ export default function EdgeLines({ edges, clusters }: Props) {
         </lineSegments>
       )}
       {causalGeo.attributes.position && (
-        <lineSegments geometry={causalGeo}>
-          <lineBasicMaterial color="#D85A30" transparent opacity={0.5} />
-        </lineSegments>
+        <lineSegments geometry={causalGeo} material={causalMaterial} />
       )}
     </group>
   );
