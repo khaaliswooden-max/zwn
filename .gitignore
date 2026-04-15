@@ -27,6 +27,9 @@ frontend/.next/
 zuup-zwm-indexer/.env
 zwm-daily/.env
 
+# Karpathy reference repos (cloned locally, tracked separately)
+karpathy-refs/
+
 # ZWM Daily Brief output
 zwm-daily/output/*.docx
 zwm-daily/output/*.json
