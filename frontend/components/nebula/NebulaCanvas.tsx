@@ -8,6 +8,7 @@ import ClusterHitMeshes from './ClusterHitMeshes';
 import EdgeLines from './EdgeLines';
 import NebulaHUD from './NebulaHUD';
 import PostFX from './PostFX';
+import SplatEnvironment from '@/components/splat/SplatEnvironment';
 import { buildClusters, getEdges } from '@/lib/nebula/data-mapper';
 import {
   createCausalAnimation,
@@ -149,9 +150,16 @@ function CausalAnimManager({
 
 interface Props {
   height?: number;
+  /**
+   * Optional URL to a .ksplat / .splat / .ply file.
+   * When provided, a 3D Gaussian Splat scene is rendered as an environmental
+   * backdrop behind the nebula cluster graph.
+   * If the file is missing or fails to load, the visualization continues normally.
+   */
+  splatUrl?: string;
 }
 
-export default function NebulaCanvas({ height }: Props) {
+export default function NebulaCanvas({ height, splatUrl }: Props) {
   const [selected, setSelected] = useState<SelectedCluster | null>(null);
   const [focusTarget, setFocusTarget] = useState<[number, number, number] | null>(null);
   const [causalAnims, setCausalAnims] = useState<CausalAnimation[]>([]);
@@ -229,6 +237,9 @@ export default function NebulaCanvas({ height }: Props) {
           animsRef={causalAnimsRef}
           setAnims={setCausalAnims}
         />
+
+        {/* 3DGS environmental backdrop — renders before nebula nodes for correct layering */}
+        {splatUrl && <SplatEnvironment url={splatUrl} />}
 
         <GaussianSplatRenderer
           clusters={clusters}
