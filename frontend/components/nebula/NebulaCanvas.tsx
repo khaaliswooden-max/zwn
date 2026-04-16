@@ -157,11 +157,17 @@ interface Props {
    * If the file is missing or fails to load, the visualization continues normally.
    */
   splatUrl?: string;
+  /** External camera focus target — triggers fly-to animation when set. */
+  focusTarget?: [number, number, number] | null;
 }
 
-export default function NebulaCanvas({ height, splatUrl }: Props) {
+export default function NebulaCanvas({ height, splatUrl, focusTarget: externalFocusTarget }: Props) {
   const [selected, setSelected] = useState<SelectedCluster | null>(null);
   const [focusTarget, setFocusTarget] = useState<[number, number, number] | null>(null);
+
+  useEffect(() => {
+    if (externalFocusTarget) setFocusTarget(externalFocusTarget);
+  }, [externalFocusTarget]);
   const [causalAnims, setCausalAnims] = useState<CausalAnimation[]>([]);
   const causalAnimsRef = useRef(causalAnims);
   causalAnimsRef.current = causalAnims;
