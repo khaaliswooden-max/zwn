@@ -31,7 +31,7 @@ CAUSAL_THRESHOLDS = {
     'compliance_warning_score': 60.0,
 
     # Procurement substrate (from causal-rules.ts: fitiq < 50 → FLAG_SETTLEMENT)
-    'fitiq_risk_threshold': 50.0,
+    'fitiq_risk_threshold': 42.0,
     'fitiq_compliance_penalty': 0.40,    # 40% penalty applied when both low
 
     # Biological substrate
