@@ -1,9 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Required for @mkkellogg/gaussian-splats-3d web workers in Next.js
+  // Next.js 16 uses Turbopack by default. Turbopack handles browser polyfill
+  // exclusions and WASM natively, so no additional configuration is needed.
+  // The empty turbopack config signals that we intentionally use Turbopack.
+  turbopack: {},
+
+  // Webpack fallback config — only used when explicitly running `next build --webpack`
+  // or `next dev --webpack`. Keeps @mkkellogg/gaussian-splats-3d working under webpack.
   webpack: (config, { isServer }) => {
     if (!isServer) {
-      // Prevent SSR from trying to process browser-only 3DGS worker modules
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
@@ -11,28 +16,12 @@ const nextConfig = {
         crypto: false,
       };
     }
-
-    // Allow import of .wasm files used by 3DGS sorting workers
     config.module.rules.push({
       test: /\.wasm$/,
       type: 'asset/resource',
     });
-
     return config;
   },
-
-  // Required for @mkkellogg/gaussian-splats-3d SharedArrayBuffer-based sorting
-  // (only needed if sharedMemoryForWorkers: true — we use false by default to
-  //  avoid COOP/COEP header requirements, but keeping here for reference)
-  // async headers() {
-  //   return [{
-  //     source: '/(.*)',
-  //     headers: [
-  //       { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
-  //       { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
-  //     ],
-  //   }];
-  // },
 };
 
 module.exports = nextConfig;
