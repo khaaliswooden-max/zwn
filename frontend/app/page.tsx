@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { RECENT_ENTITY_IDS } from '@/lib/mock';
 import { ZWM_API_BASE } from '@/lib/constants';
@@ -67,23 +66,6 @@ export default function HomePage() {
       {/* Hero: World Canvas */}
       <div className="w-full" style={{ height: '60vh' }}>
         <WorldCanvas height={undefined} />
-      </div>
-
-      {/* Tagline */}
-      <div className="text-center px-6 py-10 space-y-3">
-        <h1 className="text-[28px] font-bold text-zwn-text" style={{ fontFamily: "'IBM Plex Sans', sans-serif" }}>
-          The institutional world model.
-        </h1>
-        <p className="text-[22px] text-zwn-muted font-mono">
-          Nine substrates. One causal graph. Live on Solana.
-        </p>
-        <Link
-          href="/build"
-          className="inline-block text-[22px] font-bold font-mono hover:opacity-80 transition-opacity"
-          style={{ color: '#1A1A2E' }}
-        >
-          <span className="text-zwn-teal">Access the ZWM &rarr;</span>
-        </Link>
       </div>
 
       {/* Search + Recent */}
