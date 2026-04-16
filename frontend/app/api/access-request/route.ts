@@ -71,6 +71,7 @@ export async function POST(request: Request) {
 
   const resend = new Resend(apiKey);
   const timestamp = new Date().toISOString();
+  const refId = `ZWM-${Date.now()}`;
 
   try {
     await resend.emails.send({
@@ -80,6 +81,7 @@ export async function POST(request: Request) {
       text: [
         `New ZWM access request received`,
         ``,
+        `Reference:    ${refId}`,
         `Track:        ${track}`,
         `Name:         ${name}`,
         `Email:        ${email}`,
@@ -93,12 +95,38 @@ export async function POST(request: Request) {
       ].join('\n'),
     });
   } catch (err) {
-    console.error('[access-request] Failed to send email:', err);
+    console.error('[access-request] Failed to send admin notification:', err);
     return NextResponse.json(
       { error: 'Failed to submit request. Please try again.' },
       { status: 500 }
     );
   }
 
-  return NextResponse.json({ success: true, timestamp });
+  try {
+    await resend.emails.send({
+      from: 'ZWM Access <onboarding@resend.dev>',
+      to: email,
+      subject: `[ZWM] Request received — ${track}`,
+      text: [
+        `Hi ${name},`,
+        ``,
+        `We received your ZWM access request. Here are the details:`,
+        ``,
+        `  Reference: ${refId}`,
+        `  Track:     ${track}`,
+        `  Submitted: ${timestamp}`,
+        ``,
+        `We review requests manually and typically follow up within 2–3 business days.`,
+        ``,
+        `Questions? Reply to this email or reach us at khaaliswooden@gmail.com`,
+        ``,
+        `— Zuup Innovation Lab`,
+      ].join('\n'),
+    });
+  } catch (err) {
+    // Acknowledgment failure is non-fatal — the admin was already notified.
+    console.error('[access-request] Failed to send applicant acknowledgment:', err);
+  }
+
+  return NextResponse.json({ success: true, timestamp, refId });
 }

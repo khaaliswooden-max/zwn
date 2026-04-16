@@ -1,6 +1,6 @@
 import http, { IncomingMessage, ServerResponse } from 'http';
 import { Driver } from 'neo4j-driver';
-import { generateKey, validateKey, AccessTrack } from './api-key-store';
+import { generateKey, validateKey, revokeKey, listKeys, getKeyRecord, AccessTrack } from './api-key-store';
 import { queryCache } from './query-cache';
 import { getDeadLetterQueue, clearDeadLetterQueue } from '../causal/propagation-engine';
 import { metrics } from '../lib/metrics';
@@ -20,21 +20,25 @@ function corsOrigin(req: IncomingMessage): string {
 
 // ─── Rate limiter (in-memory token bucket, per API key) ─────────────────────
 
-const RATE_LIMIT_MAX = parseInt(process.env['RATE_LIMIT_MAX'] ?? '100', 10);
+const TRACK_RATE_LIMITS: Record<string, number> = {
+  API_ACCESS:           parseInt(process.env['RATE_LIMIT_API']          ?? '100',  10),
+  PLATFORM_PARTNERSHIP: parseInt(process.env['RATE_LIMIT_PARTNER']      ?? '300',  10),
+  INSTITUTIONAL:        parseInt(process.env['RATE_LIMIT_INSTITUTIONAL'] ?? '1000', 10),
+};
 const RATE_LIMIT_WINDOW_MS = 60_000;
 
 const rateBuckets = new Map<string, { tokens: number; lastRefill: number }>();
 
-function checkRateLimit(key: string): boolean {
+function checkRateLimit(key: string, limit: number): boolean {
   const now = Date.now();
   let bucket = rateBuckets.get(key);
   if (!bucket) {
-    bucket = { tokens: RATE_LIMIT_MAX, lastRefill: now };
+    bucket = { tokens: limit, lastRefill: now };
     rateBuckets.set(key, bucket);
   }
   const elapsed = now - bucket.lastRefill;
   if (elapsed >= RATE_LIMIT_WINDOW_MS) {
-    bucket.tokens = RATE_LIMIT_MAX;
+    bucket.tokens = limit;
     bucket.lastRefill = now;
   }
   if (bucket.tokens <= 0) return false;
@@ -67,6 +71,20 @@ function requireApiKey(req: IncomingMessage, res: ServerResponse): boolean {
   const key = req.headers['x-zwm-api-key'];
   if (typeof key !== 'string' || !validateKey(key)) {
     sendJson(res, 401, { error: 'Invalid or missing X-ZWM-API-Key header.' });
+    return false;
+  }
+  return true;
+}
+
+function requireAdminKey(req: IncomingMessage, res: ServerResponse): boolean {
+  const adminSecret = process.env['ADMIN_SECRET'];
+  if (!adminSecret) {
+    sendJson(res, 503, { error: 'Admin secret not configured on this server.' });
+    return false;
+  }
+  const provided = req.headers['x-admin-secret'];
+  if (typeof provided !== 'string' || provided !== adminSecret) {
+    sendJson(res, 401, { error: 'Invalid or missing X-Admin-Secret header.' });
     return false;
   }
   return true;
@@ -699,25 +717,45 @@ export async function startEnterpriseApi(driver: Driver): Promise<void> {
         return;
       }
 
-      // POST /enterprise/clear-dead-letters — clear dead-letter queue (no auth, ops tool)
+      // POST /enterprise/clear-dead-letters — admin only
       if (method === 'POST' && url === '/enterprise/clear-dead-letters') {
+        if (!requireAdminKey(req, res)) return;
         const cleared = clearDeadLetterQueue();
         sendJson(res, 200, { cleared, status: 'ok' });
         return;
       }
 
-      // POST /enterprise/api-keys — no auth required (bootstrap endpoint)
+      // POST /enterprise/api-keys — admin only
       if (method === 'POST' && url === '/enterprise/api-keys') {
+        if (!requireAdminKey(req, res)) return;
         await handleGenerateKey(req, res);
+        return;
+      }
+
+      // GET /enterprise/api-keys — list all keys (admin only)
+      if (method === 'GET' && url === '/enterprise/api-keys') {
+        if (!requireAdminKey(req, res)) return;
+        sendJson(res, 200, listKeys());
+        return;
+      }
+
+      // DELETE /enterprise/api-keys/:key — revoke a key (admin only)
+      const revokeTarget = pathParam(url, '/enterprise/api-keys/');
+      if (method === 'DELETE' && revokeTarget !== null) {
+        if (!requireAdminKey(req, res)) return;
+        const ok = revokeKey(revokeTarget);
+        sendJson(res, ok ? 200 : 404, { revoked: ok });
         return;
       }
 
       // All other enterprise routes require a valid API key
       if (!requireApiKey(req, res)) return;
 
-      // Rate limiting (per API key, 100 req/min default)
+      // Rate limiting (per API key, track-based limits)
       const apiKey = req.headers['x-zwm-api-key'] as string;
-      if (!checkRateLimit(apiKey)) {
+      const keyRecord = getKeyRecord(apiKey);
+      const rateLimit = TRACK_RATE_LIMITS[keyRecord?.track ?? 'API_ACCESS'] ?? 100;
+      if (!checkRateLimit(apiKey, rateLimit)) {
         sendJson(res, 429, { error: 'Rate limit exceeded. Try again in 60 seconds.' }, req);
         return;
       }

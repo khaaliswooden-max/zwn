@@ -51,7 +51,7 @@ export async function getCausalChain(eventId: string) {
 }
 
 export async function generateApiKey(track: string): Promise<{ key: string; track: string; createdAt: number }> {
-  const resp = await fetch(`${ZWM_API_BASE}/enterprise/api-keys`, {
+  const resp = await fetch('/api/admin/generate-key', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ track }),
