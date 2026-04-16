@@ -28,7 +28,7 @@ from prepare import load_data, evaluate_model
 CAUSAL_THRESHOLDS = {
     # Compliance substrate (from CLAUDE.md: score < 40 = VIOLATION)
     'compliance_violation_score': 35.0,
-    'compliance_warning_score': 60.0,
+    'compliance_warning_score': 55.0,
 
     # Procurement substrate (from causal-rules.ts: fitiq < 50 → FLAG_SETTLEMENT)
     'fitiq_risk_threshold': 42.0,
