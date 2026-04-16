@@ -21,10 +21,10 @@ interface ErrorState {
 }
 
 class CanvasErrorBoundary extends Component<
-  { children: ReactNode; height?: number },
+  { children: ReactNode; height?: number; splatUrl?: string },
   ErrorState
 > {
-  constructor(props: { children: ReactNode; height?: number }) {
+  constructor(props: { children: ReactNode; height?: number; splatUrl?: string }) {
     super(props);
     this.state = { hasError: false, error: '' };
   }
@@ -56,12 +56,14 @@ class CanvasErrorBoundary extends Component<
 
 interface Props {
   height?: number;
+  /** Optional 3DGS splat URL to render as an environmental backdrop. */
+  splatUrl?: string;
 }
 
-export default function WorldCanvas({ height }: Props) {
+export default function WorldCanvas({ height, splatUrl }: Props) {
   return (
-    <CanvasErrorBoundary height={height}>
-      <NebulaCanvas height={height} />
+    <CanvasErrorBoundary height={height} splatUrl={splatUrl}>
+      <NebulaCanvas height={height} splatUrl={splatUrl} />
     </CanvasErrorBoundary>
   );
 }
