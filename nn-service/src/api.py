@@ -18,6 +18,8 @@ from pydantic import BaseModel, Field
 
 from src import config
 from src.inference.anomaly_detector import registry
+from src.karpathy.karpathy_detector import karpathy_registry
+from src.karpathy.karpathy_trainer import KarpathyModelType, KarpathyTrainConfig, train_karpathy_model
 from src.training.anomaly_trainer import train_biological_vae
 
 logging.basicConfig(
@@ -38,6 +40,11 @@ async def lifespan(app: FastAPI):
             logger.info("Pre-loaded model: %s", model_name)
         else:
             logger.info("No pre-trained model found for '%s' — train first", model_name)
+    # Pre-load Karpathy models
+    for model_name in ("zwm_nanogpt", "zwm_wavenet"):
+        instance = karpathy_registry.load(model_name)
+        if instance:
+            logger.info("Pre-loaded Karpathy model: %s", model_name)
     yield
     logger.info("nn-service shutting down")
 
@@ -177,9 +184,103 @@ async def models_status() -> list[dict]:
 async def health() -> dict:
     """Liveness check."""
     models = registry.list_models()
+    karpathy_models = karpathy_registry.list_models()
     loaded_count = sum(1 for m in models if m.get("loaded"))
+    karpathy_loaded = sum(1 for m in karpathy_models if m.get("loaded"))
     return {
         "status": "ok",
-        "models_available": len(models),
-        "models_loaded": loaded_count,
+        "models_available": len(models) + len(karpathy_models),
+        "models_loaded": loaded_count + karpathy_loaded,
+        "vae_models": len(models),
+        "karpathy_models": len(karpathy_models),
     }
+
+
+# ---------------------------------------------------------------------------
+# Karpathy Loop endpoints
+# ---------------------------------------------------------------------------
+
+class KarpathyTrainRequest(BaseModel):
+    model_name: str = Field(default="zwm_nanogpt", description="Name for the trained model")
+    model_type: str = Field(
+        default="nanogpt",
+        description="One of: bigram, mlp, wavenet, nanogpt",
+    )
+    use_synthetic_data: bool = Field(
+        default=False,
+        description="Use synthetic Markov data instead of Neo4j (for dev/testing)",
+    )
+    n_synthetic_actors: int = Field(default=100, ge=10, le=10000)
+
+
+class KarpathyDetectRequest(BaseModel):
+    model_name: str = Field(default="zwm_nanogpt")
+    event_sequence: list[str] = Field(
+        description="Ordered event types; last element is scored, preceding are context",
+        min_length=2,
+    )
+    entity_id: str | None = Field(default=None, description="Entity ID for audit trail")
+    substrate_event_id: str | None = Field(default=None, description="SubstrateEvent that triggered this")
+
+
+class KarpathyDetectResponse(BaseModel):
+    anomaly_score: float = Field(description="Normalized score 0.0-1.0 (higher = more anomalous)")
+    raw_score: float = Field(description="Raw cross-entropy prediction loss")
+    is_anomaly: bool = Field(description="Whether raw_score exceeds trained threshold")
+    threshold: float
+    model_version: int
+    scored_event: str = Field(description="The event that was scored (last in sequence)")
+    context_events: list[str] = Field(description="Preceding events used as context")
+    entity_id: str | None = None
+    substrate_event_id: str | None = None
+
+
+@app.post("/karpathy/train")
+async def karpathy_train(req: KarpathyTrainRequest) -> dict:
+    """Train a Karpathy Loop sequence model on ZWM SubstrateEvent data."""
+    try:
+        model_type = KarpathyModelType(req.model_type)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid model_type '{req.model_type}'. Must be one of: bigram, mlp, wavenet, nanogpt",
+        )
+
+    train_config = KarpathyTrainConfig(
+        model_type=model_type,
+        use_synthetic_data=req.use_synthetic_data,
+        n_synthetic_actors=req.n_synthetic_actors,
+    )
+    try:
+        metadata = train_karpathy_model(model_name=req.model_name, train_config=train_config)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    karpathy_registry.reload(req.model_name)
+    return {"status": "ok", "metadata": metadata}
+
+
+@app.post("/karpathy/detect", response_model=KarpathyDetectResponse)
+async def karpathy_detect(req: KarpathyDetectRequest) -> KarpathyDetectResponse:
+    """Score the last event in a sequence for anomalousness using prediction error."""
+    model = karpathy_registry.get(req.model_name)
+    if model is None:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Karpathy model '{req.model_name}' not loaded. Train via POST /karpathy/train",
+        )
+
+    result = model.score(req.event_sequence)
+    return KarpathyDetectResponse(
+        **result,
+        scored_event=req.event_sequence[-1],
+        context_events=req.event_sequence[:-1],
+        entity_id=req.entity_id,
+        substrate_event_id=req.substrate_event_id,
+    )
+
+
+@app.get("/karpathy/status")
+async def karpathy_status() -> list[dict]:
+    """List loaded Karpathy models and their metadata."""
+    return karpathy_registry.list_models()

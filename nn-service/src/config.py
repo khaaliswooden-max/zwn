@@ -23,3 +23,21 @@ VAE_ANOMALY_PERCENTILE = float(os.getenv("VAE_ANOMALY_PERCENTILE", "95"))
 
 # Cross-platform VAE (concatenated state vector from all substrates)
 CROSS_PLATFORM_INPUT_DIM = int(os.getenv("CROSS_PLATFORM_INPUT_DIM", "20"))
+
+# ---------------------------------------------------------------------------
+# Karpathy Loop hyperparameters
+# ---------------------------------------------------------------------------
+KARPATHY_MODEL_TYPE = os.getenv("KARPATHY_MODEL_TYPE", "nanogpt")
+KARPATHY_CONTEXT_LEN = int(os.getenv("KARPATHY_CONTEXT_LEN", "8"))
+KARPATHY_USE_SYNTHETIC = os.getenv("KARPATHY_USE_SYNTHETIC", "false").lower() == "true"
+KARPATHY_N_SYNTHETIC_ACTORS = int(os.getenv("KARPATHY_N_SYNTHETIC_ACTORS", "100"))
+KARPATHY_EPOCHS = int(os.getenv("KARPATHY_EPOCHS", "50"))        # makemore models
+KARPATHY_MAX_ITERS = int(os.getenv("KARPATHY_MAX_ITERS", "2000"))  # nanoGPT
+KARPATHY_BATCH_SIZE = int(os.getenv("KARPATHY_BATCH_SIZE", "32"))
+KARPATHY_LR = float(os.getenv("KARPATHY_LR", "1e-3"))
+KARPATHY_ANOMALY_PERCENTILE = float(os.getenv("KARPATHY_ANOMALY_PERCENTILE", "95"))
+# nanoGPT architecture
+KARPATHY_N_LAYER = int(os.getenv("KARPATHY_N_LAYER", "4"))
+KARPATHY_N_HEAD = int(os.getenv("KARPATHY_N_HEAD", "4"))
+KARPATHY_N_EMBD = int(os.getenv("KARPATHY_N_EMBD", "64"))
+KARPATHY_BLOCK_SIZE = int(os.getenv("KARPATHY_BLOCK_SIZE", "64"))
