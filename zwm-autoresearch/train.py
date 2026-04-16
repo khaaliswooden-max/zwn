@@ -75,9 +75,9 @@ def compute_risk_score(state: dict) -> float:
     # 1. Compliance contribution (primary signal)
     c = state['compliance_score']
     if c < t['compliance_violation_score']:
-        risk += 0.60
+        risk += 0.70  # definite violation zone — strong signal
     elif c < t['compliance_warning_score']:
-        risk += 0.30
+        risk += 0.25  # warning zone — moderate signal
 
     # 2. Procurement contribution
     f = state['fitiq']
