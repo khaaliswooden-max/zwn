@@ -1,0 +1,173 @@
+{
+  "baseline_metric": -0.6994,
+  "baseline_f1": 0.6994,
+  "best_metric": -0.8524,
+  "best_f1": 0.8524,
+  "experiments": [
+    {
+      "iteration": 1,
+      "metric": -0.7069,
+      "f1": 0.7069,
+      "precision": 0.6007,
+      "recall": 0.8586,
+      "description": "lower compliance_violation_score 40→35",
+      "status": "kept",
+      "delta": -0.0075,
+      "timestamp": "2026-04-16T02:25:00Z"
+    },
+    {
+      "iteration": 2,
+      "metric": -0.7196,
+      "f1": 0.7196,
+      "precision": 0.6392,
+      "recall": 0.8232,
+      "description": "lower fitiq_risk_threshold 50→42",
+      "status": "kept",
+      "delta": -0.0127,
+      "timestamp": "2026-04-16T02:26:00Z"
+    },
+    {
+      "iteration": 3,
+      "metric": -0.6372,
+      "f1": 0.6372,
+      "precision": 0.5014,
+      "recall": 0.8737,
+      "description": "lower violation_prediction_threshold 0.45→0.38",
+      "status": "reverted",
+      "delta": 0.0824,
+      "timestamp": "2026-04-16T02:27:00Z"
+    },
+    {
+      "iteration": 4,
+      "metric": -0.7535,
+      "f1": 0.7535,
+      "precision": 0.6983,
+      "recall": 0.8182,
+      "description": "lower compliance_warning_score 60→55",
+      "status": "kept",
+      "delta": -0.0339,
+      "timestamp": "2026-04-16T02:28:00Z"
+    },
+    {
+      "iteration": 5,
+      "metric": -0.7500,
+      "f1": 0.7500,
+      "precision": 0.6923,
+      "recall": 0.8182,
+      "description": "increase HIGH severity weight 0.25→0.40",
+      "status": "reverted",
+      "delta": 0.0035,
+      "timestamp": "2026-04-16T02:29:00Z"
+    },
+    {
+      "iteration": 6,
+      "metric": -0.7535,
+      "f1": 0.7535,
+      "precision": 0.6983,
+      "recall": 0.8182,
+      "description": "biological×compute joint interaction term (0.35 boost)",
+      "status": "reverted",
+      "delta": 0.0,
+      "timestamp": "2026-04-16T02:30:00Z"
+    },
+    {
+      "iteration": 7,
+      "metric": -0.7535,
+      "f1": 0.7535,
+      "precision": 0.6983,
+      "recall": 0.8182,
+      "description": "amplified joint compliance+fitiq penalty (1.5x)",
+      "status": "reverted",
+      "delta": 0.0,
+      "timestamp": "2026-04-16T02:31:00Z"
+    },
+    {
+      "iteration": 8,
+      "metric": -0.8476,
+      "f1": 0.8476,
+      "precision": 0.9387,
+      "recall": 0.7727,
+      "description": "raise violation contribution 0.60→0.70, lower warning 0.30→0.25",
+      "status": "kept",
+      "delta": -0.0941,
+      "timestamp": "2026-04-16T02:32:00Z"
+    },
+    {
+      "iteration": 9,
+      "metric": -0.8476,
+      "f1": 0.8476,
+      "precision": 0.9387,
+      "recall": 0.7727,
+      "description": "raise violation contribution 0.70→0.80",
+      "status": "reverted",
+      "delta": 0.0,
+      "timestamp": "2026-04-16T02:33:00Z"
+    },
+    {
+      "iteration": 10,
+      "metric": -0.8453,
+      "f1": 0.8453,
+      "precision": 0.9329,
+      "recall": 0.7727,
+      "description": "raise standalone fitiq penalty 0.20→0.30",
+      "status": "reverted",
+      "delta": 0.0023,
+      "timestamp": "2026-04-16T02:34:00Z"
+    },
+    {
+      "iteration": 11,
+      "metric": -0.8453,
+      "f1": 0.8453,
+      "precision": 0.9329,
+      "recall": 0.7727,
+      "description": "lower violation_prediction_threshold 0.45→0.42",
+      "status": "reverted",
+      "delta": 0.0023,
+      "timestamp": "2026-04-16T02:35:00Z"
+    },
+    {
+      "iteration": 12,
+      "metric": -0.8476,
+      "f1": 0.8476,
+      "precision": 0.9387,
+      "recall": 0.7727,
+      "description": "explicit joint bio HIGH + compute < 0.92 crisis signal (0.55)",
+      "status": "reverted",
+      "delta": 0.0,
+      "timestamp": "2026-04-16T02:36:00Z"
+    },
+    {
+      "iteration": 13,
+      "metric": -0.8524,
+      "f1": 0.8524,
+      "precision": 0.9503,
+      "recall": 0.7727,
+      "description": "continuous proximity feature in compliance warning zone",
+      "status": "kept",
+      "delta": -0.0048,
+      "timestamp": "2026-04-16T02:37:00Z"
+    },
+    {
+      "iteration": 14,
+      "metric": -0.8524,
+      "f1": 0.8524,
+      "precision": 0.9503,
+      "recall": 0.7727,
+      "description": "continuous proximity for FitIQ contribution",
+      "status": "reverted",
+      "delta": 0.0,
+      "timestamp": "2026-04-16T02:38:00Z"
+    },
+    {
+      "iteration": 15,
+      "metric": -0.8524,
+      "f1": 0.8524,
+      "precision": 0.9503,
+      "recall": 0.7727,
+      "description": "lower fitiq_risk_threshold 42→40",
+      "status": "reverted",
+      "delta": 0.0,
+      "timestamp": "2026-04-16T02:39:00Z"
+    }
+  ]
+}
