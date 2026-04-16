@@ -14,6 +14,7 @@ export default function ApiKeyPanel({ onKeyChange }: Props) {
   const [key, setKey] = useState('');
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [genError, setGenError] = useState('');
 
   useEffect(() => {
     const stored = localStorage.getItem('zwm_api_key') ?? '';
@@ -22,6 +23,7 @@ export default function ApiKeyPanel({ onKeyChange }: Props) {
 
   const generate = async () => {
     setLoading(true);
+    setGenError('');
     try {
       const rec = await generateApiKey(track);
       const newKey = rec.key;
@@ -29,11 +31,7 @@ export default function ApiKeyPanel({ onKeyChange }: Props) {
       setKey(newKey);
       onKeyChange?.(newKey);
     } catch {
-      // Simulate a key if backend is down
-      const fakeKey = `zwm_${Math.random().toString(36).slice(2, 18)}`;
-      localStorage.setItem('zwm_api_key', fakeKey);
-      setKey(fakeKey);
-      onKeyChange?.(fakeKey);
+      setGenError('Key generation failed. Verify ADMIN_SECRET is configured.');
     } finally {
       setLoading(false);
     }
@@ -69,6 +67,10 @@ export default function ApiKeyPanel({ onKeyChange }: Props) {
       >
         {loading ? 'generating...' : 'generate'}
       </button>
+
+      {genError && (
+        <span className="text-[10px] text-red-400">{genError}</span>
+      )}
 
       {key && (
         <>
