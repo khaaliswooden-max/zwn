@@ -4,6 +4,7 @@ import { useEffect, useState, use } from 'react';
 import Link from 'next/link';
 import { getWorldState, getCausalChain } from '@/lib/api';
 import { getMockWorldState, MOCK_CAUSAL_CHAIN } from '@/lib/mock';
+import { addRecentEntity } from '@/lib/entity-search';
 import EntityCard from '@/components/EntityCard';
 import SubstrateGrid from '@/components/SubstrateGrid';
 import CausalChain from '@/components/CausalChain';
@@ -32,15 +33,6 @@ interface CausalLink {
   effect: Record<string, unknown>;
 }
 
-function addRecent(id: string) {
-  try {
-    const stored = localStorage.getItem('zwn_recent_entities');
-    const existing: string[] = stored ? JSON.parse(stored) : [];
-    const updated = [id, ...existing.filter((e) => e !== id)].slice(0, 5);
-    localStorage.setItem('zwn_recent_entities', JSON.stringify(updated));
-  } catch { /* ignore */ }
-}
-
 export default function EntityPage({
   params,
 }: {
@@ -55,7 +47,7 @@ export default function EntityPage({
   const [isDemo, setIsDemo] = useState(false);
 
   useEffect(() => {
-    addRecent(entityId);
+    addRecentEntity(entityId);
 
     void (async () => {
       try {

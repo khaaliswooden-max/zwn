@@ -1,7 +1,10 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import EntitySearchPanel from '@/components/EntitySearchPanel';
+import { buildClusters } from '@/lib/nebula/data-mapper';
 
 const WorldCanvas = dynamic(() => import('@/components/WorldCanvas'), {
   ssr: false,
@@ -27,6 +30,7 @@ interface GenerateState {
 }
 
 export default function WorldPage() {
+  const router = useRouter();
   const [canvasHeight, setCanvasHeight] = useState(600);
   const [gen, setGen] = useState<GenerateState>({
     status: 'idle',
@@ -36,6 +40,20 @@ export default function WorldPage() {
   });
   const [panelOpen, setPanelOpen] = useState(false);
   const [selectedScene, setSelectedScene] = useState('world-nebula');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [focusEntityTarget, setFocusEntityTarget] = useState<[number, number, number] | null>(null);
+
+  const clusters = useMemo(() => buildClusters(), []);
+
+  const handleWorldSearch = useCallback((id: string) => {
+    setSearchOpen(false);
+    const cluster = clusters.find((c) => c.nodeType === 'WorldActor' && c.nodeId === id);
+    if (cluster) {
+      setFocusEntityTarget(cluster.center);
+    } else {
+      router.push(`/entities/${encodeURIComponent(id)}`);
+    }
+  }, [clusters, router]);
 
   useEffect(() => {
     const calc = () => setCanvasHeight(window.innerHeight - 44 - 36);
@@ -114,7 +132,7 @@ export default function WorldPage() {
   return (
     <div className="relative w-full" style={{ height: canvasHeight }}>
       {/* ── 3DGS + Nebula canvas (fills entire viewport) ──────────────────── */}
-      <WorldCanvas height={canvasHeight} splatUrl={gen.activeSplatUrl} />
+      <WorldCanvas height={canvasHeight} splatUrl={gen.activeSplatUrl} focusTarget={focusEntityTarget} />
 
       {/* ── World page overlays ────────────────────────────────────────────── */}
 
@@ -205,6 +223,23 @@ export default function WorldPage() {
         <span>3DGS · causal graph · live</span>
         <span className="hidden sm:inline">double-click cluster to focus · press C for causal demo</span>
       </div>
+
+      {/* Bottom-right: entity search toggle */}
+      <div className="absolute bottom-8 right-4 z-20">
+        <button
+          onClick={() => setSearchOpen((v) => !v)}
+          className="px-3 py-1.5 rounded bg-zwn-surface/80 border border-zwn-border text-[10px] text-zwn-muted tracking-widest hover:text-zwn-teal hover:border-zwn-teal/30 transition-colors"
+        >
+          {searchOpen ? 'close ✕' : 'search entity →'}
+        </button>
+      </div>
+
+      {/* Entity search panel — anchored above the toggle */}
+      {searchOpen && (
+        <div className="absolute bottom-20 right-4 z-20 w-64 bg-zwn-surface/95 border border-zwn-border rounded-lg p-4 backdrop-blur-sm">
+          <EntitySearchPanel onSearch={handleWorldSearch} />
+        </div>
+      )}
     </div>
   );
 }

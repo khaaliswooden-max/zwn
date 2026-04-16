@@ -58,12 +58,14 @@ interface Props {
   height?: number;
   /** Optional 3DGS splat URL to render as an environmental backdrop. */
   splatUrl?: string;
+  /** External camera focus target — triggers fly-to animation when set. */
+  focusTarget?: [number, number, number] | null;
 }
 
-export default function WorldCanvas({ height, splatUrl }: Props) {
+export default function WorldCanvas({ height, splatUrl, focusTarget }: Props) {
   return (
     <CanvasErrorBoundary height={height} splatUrl={splatUrl}>
-      <NebulaCanvas height={height} splatUrl={splatUrl} />
+      <NebulaCanvas height={height} splatUrl={splatUrl} focusTarget={focusTarget} />
     </CanvasErrorBoundary>
   );
 }

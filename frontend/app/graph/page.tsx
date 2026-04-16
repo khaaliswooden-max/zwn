@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import EntitySearchPanel from '@/components/EntitySearchPanel';
 
 const WorldCanvas = dynamic(() => import('@/components/WorldCanvas'), {
   ssr: false,
@@ -38,9 +40,11 @@ async function findFirstAvailableSplat(candidates: string[]): Promise<string | u
 }
 
 export default function GraphPage() {
+  const router = useRouter();
   const [height, setHeight] = useState(600);
   const [splatUrl, setSplatUrl] = useState<string | undefined>(undefined);
   const [splatChecked, setSplatChecked] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   useEffect(() => {
     const calc = () => setHeight(window.innerHeight - 44 - 36);
@@ -71,6 +75,28 @@ export default function GraphPage() {
       {splatChecked && splatUrl && (
         <div className="absolute bottom-2 right-4 z-10 text-[8px] text-zwn-muted/30 tracking-widest">
           3DGS · {splatUrl.split('/').pop()}
+        </div>
+      )}
+
+      {/* Bottom-right: entity search toggle */}
+      <div className="absolute bottom-8 right-4 z-20">
+        <button
+          onClick={() => setSearchOpen((v) => !v)}
+          className="px-3 py-1.5 rounded bg-zwn-surface/80 border border-zwn-border text-[10px] text-zwn-muted tracking-widest hover:text-zwn-teal hover:border-zwn-teal/30 transition-colors"
+        >
+          {searchOpen ? 'close ✕' : 'search entity →'}
+        </button>
+      </div>
+
+      {/* Entity search panel — anchored above the toggle */}
+      {searchOpen && (
+        <div className="absolute bottom-20 right-4 z-20 w-64 bg-zwn-surface/95 border border-zwn-border rounded-lg p-4 backdrop-blur-sm">
+          <EntitySearchPanel
+            onSearch={(id) => {
+              setSearchOpen(false);
+              router.push(`/entities/${encodeURIComponent(id)}`);
+            }}
+          />
         </div>
       )}
     </div>
