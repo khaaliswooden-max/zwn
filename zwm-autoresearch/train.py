@@ -77,7 +77,10 @@ def compute_risk_score(state: dict) -> float:
     if c < t['compliance_violation_score']:
         risk += 0.70  # definite violation zone — strong signal
     elif c < t['compliance_warning_score']:
-        risk += 0.25  # warning zone — moderate signal
+        # Continuous proximity: closer to violation threshold = higher risk
+        # compliance at 55 → 0.05 risk; compliance at 36 (just above threshold) → 0.25 risk
+        proximity = (t['compliance_warning_score'] - c) / (t['compliance_warning_score'] - t['compliance_violation_score'])
+        risk += 0.05 + 0.20 * proximity  # 0.05 to 0.25 continuously
 
     # 2. Procurement contribution
     f = state['fitiq']
