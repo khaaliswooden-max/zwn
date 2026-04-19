@@ -225,28 +225,34 @@ export default function NebulaCanvas({ height, splatUrl, focusTarget: externalFo
     setSelected(null);
   }, []);
 
-  // Demo: trigger a causal animation on keypress 'c'
+  // Demo: trigger a causal animation on keypress 'c' (desktop) or via the
+  // 'zwn:causal-demo' custom event (mobile button — same handler keeps both
+  // surfaces in sync without lifting state out of NebulaCanvas).
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'c' || e.key === 'C') {
-        const source = clusters.find((c) => c.nodeType === 'ComplianceState');
-        const target = clusters.find((c) => c.nodeType === 'ProcurementState');
-        if (source && target) {
-          const sourceColor = hexToRgb(
-            SUBSTRATE_COLORS[source.nodeType] ?? '#888780',
-          );
-          const anim = createCausalAnimation(
-            `causal-${Date.now()}`,
-            source.center,
-            target.center,
-            sourceColor,
-          );
-          setCausalAnims((prev) => [...prev, anim]);
-        }
-      }
+    const trigger = () => {
+      const source = clusters.find((c) => c.nodeType === 'ComplianceState');
+      const target = clusters.find((c) => c.nodeType === 'ProcurementState');
+      if (!source || !target) return;
+      const sourceColor = hexToRgb(
+        SUBSTRATE_COLORS[source.nodeType] ?? '#888780',
+      );
+      const anim = createCausalAnimation(
+        `causal-${Date.now()}`,
+        source.center,
+        target.center,
+        sourceColor,
+      );
+      setCausalAnims((prev) => [...prev, anim]);
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'c' || e.key === 'C') trigger();
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('zwn:causal-demo', trigger);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('zwn:causal-demo', trigger);
+    };
   }, [clusters]);
 
   const addAnimation = useCallback((anim: CausalAnimation) => {

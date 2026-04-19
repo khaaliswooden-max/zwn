@@ -30,9 +30,12 @@ interface GenerateState {
   etaSeconds: number | null;
 }
 
+// Layout chrome: nav bar (44px) + status bar (36px). Used for the canvas
+// viewport calc so the world fills exactly the visible area between them.
+const CHROME_HEIGHT_PX = 80;
+
 export default function WorldPage() {
   const router = useRouter();
-  const [canvasHeight, setCanvasHeight] = useState(600);
   const [gen, setGen] = useState<GenerateState>({
     status: 'idle',
     jobId: null,
@@ -56,13 +59,6 @@ export default function WorldPage() {
       router.push(`/entities/${encodeURIComponent(id)}`);
     }
   }, [clusters, router]);
-
-  useEffect(() => {
-    const calc = () => setCanvasHeight(window.innerHeight - 44 - 36);
-    calc();
-    window.addEventListener('resize', calc);
-    return () => window.removeEventListener('resize', calc);
-  }, []);
 
   // Poll job status until done or error
   useEffect(() => {
@@ -133,9 +129,12 @@ export default function WorldPage() {
       : '';
 
   return (
-    <div className="relative w-full" style={{ height: canvasHeight }}>
+    <div
+      className="relative w-full"
+      style={{ height: `calc(100dvh - ${CHROME_HEIGHT_PX}px)` }}
+    >
       {/* ── 3DGS + Nebula canvas (fills entire viewport) ──────────────────── */}
-      <WorldCanvas height={canvasHeight} splatUrl={gen.activeSplatUrl} focusTarget={focusEntityTarget} />
+      <WorldCanvas splatUrl={gen.activeSplatUrl} focusTarget={focusEntityTarget} />
 
       {/* ── World page overlays ────────────────────────────────────────────── */}
 
@@ -217,8 +216,18 @@ export default function WorldPage() {
         <span className="hidden sm:inline">double-click cluster to focus · press C for causal demo</span>
       </div>
 
-      {/* Bottom-right: entity search toggle */}
-      <div className="absolute bottom-8 right-4 z-20">
+      {/* Bottom-right controls — causal-demo button is mobile-only since
+          desktop users get the 'C' keypress shortcut shown in the status line. */}
+      <div className="absolute bottom-8 right-4 z-20 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() =>
+            window.dispatchEvent(new CustomEvent('zwn:causal-demo'))
+          }
+          className="sm:hidden px-3 py-1.5 rounded bg-zwn-surface/80 border border-zwn-border text-[10px] text-zwn-muted tracking-widest active:text-zwn-teal active:border-zwn-teal/30 transition-colors"
+        >
+          causal flow
+        </button>
         <button
           onClick={() => setSearchOpen((v) => !v)}
           className="px-3 py-1.5 rounded bg-zwn-surface/80 border border-zwn-border text-[10px] text-zwn-muted tracking-widest hover:text-zwn-teal hover:border-zwn-teal/30 transition-colors"
