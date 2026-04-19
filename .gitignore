@@ -22,6 +22,10 @@ zuup-zwm-indexer/dist/
 *.tsbuildinfo
 frontend/.next/
 
+# Python
+__pycache__/
+*.pyc
+
 # Env
 .env
 zuup-zwm-indexer/.env
