@@ -1,12 +1,22 @@
 'use client';
 
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ClusterDescriptor, GaussianParams, CausalAnimation } from '@/lib/nebula/types';
-import { computeDepthOrder, reorderBuffer } from '@/lib/nebula/depth-sort';
+import { reorderBuffer } from '@/lib/nebula/depth-sort';
+import { DepthSortPool } from '@/lib/nebula/depth-sort-pool';
 import { SIMPLEX_NOISE_3D, FBM_3D } from '@/lib/nebula/noise.glsl';
 import { supportsVolumetric } from '@/lib/nebula/capabilities';
+
+// Precomputed noise LUT — avoids ~1800 Math.random() calls per frame at 600 gaussians.
+const NOISE_LUT_SIZE = 2048;
+const NOISE_LUT_MASK = NOISE_LUT_SIZE - 1;
+const NOISE_LUT = (() => {
+  const arr = new Float32Array(NOISE_LUT_SIZE);
+  for (let i = 0; i < NOISE_LUT_SIZE; i++) arr[i] = Math.random() - 0.5;
+  return arr;
+})();
 
 // ── Volumetric Shaders (Tier 2 — WebGL2+) ──────────────────────────────────
 
@@ -174,6 +184,21 @@ export default function GaussianSplatRenderer({
   const { camera } = useThree();
   const lastSortCamPos = useRef(new THREE.Vector3());
   const volumetric = useRef(supportsVolumetric());
+  const sortPool = useRef<DepthSortPool | null>(null);
+  const pendingSortOrder = useRef<Uint32Array | null>(null);
+  const noiseCursor = useRef(0);
+
+  if (!sortPool.current && typeof window !== 'undefined') {
+    sortPool.current = new DepthSortPool();
+    sortPool.current.setCallback((order) => {
+      pendingSortOrder.current = order;
+    });
+  }
+
+  useEffect(() => {
+    const pool = sortPool.current;
+    return () => pool?.dispose();
+  }, []);
 
   const { geometry, material, totalCount, clusterRanges } = useMemo(() => {
     const allGaussians: GaussianParams[] = [];
@@ -284,6 +309,10 @@ export default function GaussianSplatRenderer({
     const mesh = meshRef.current;
     if (!mesh) return;
 
+    // Skip work entirely when the tab is hidden — rAF already throttles, but
+    // the cluster loop + drift updates are pure overhead with nothing on screen.
+    if (typeof document !== 'undefined' && document.hidden) return;
+
     const time = clock.elapsedTime;
     const currentSelected = selectedRef.current;
     const currentCausalAnims = causalRef.current;
@@ -325,9 +354,10 @@ export default function GaussianSplatRenderer({
             ? 1 + 0.05 * Math.sin(time * cluster.pulseRate * Math.PI * 2 + gi * 0.7)
             : 1;
 
-        driftData[i * 3] += (Math.random() - 0.5) * 0.003;
-        driftData[i * 3 + 1] += (Math.random() - 0.5) * 0.003;
-        driftData[i * 3 + 2] += (Math.random() - 0.5) * 0.003;
+        const nBase = (noiseCursor.current + i * 3) & NOISE_LUT_MASK;
+        driftData[i * 3] += NOISE_LUT[nBase] * 0.003;
+        driftData[i * 3 + 1] += NOISE_LUT[(nBase + 1) & NOISE_LUT_MASK] * 0.003;
+        driftData[i * 3 + 2] += NOISE_LUT[(nBase + 2) & NOISE_LUT_MASK] * 0.003;
         driftData[i * 3] *= 0.98;
         driftData[i * 3 + 1] *= 0.98;
         driftData[i * 3 + 2] *= 0.98;
@@ -376,19 +406,33 @@ export default function GaussianSplatRenderer({
 
     geo.instanceCount = instanceCount;
 
-    // Depth sort when camera has moved significantly
+    // Advance the noise LUT cursor once per frame (avoids correlated patterns).
+    noiseCursor.current = (noiseCursor.current + 7) & NOISE_LUT_MASK;
+
+    // Depth sort when camera has moved significantly. The pool runs the N log N
+    // sort on a worker; the reorder (linear copy) stays here to avoid a second
+    // round-trip. When the worker is unavailable, requestSort returns a sync result.
     const camPos = camera.position;
-    if (lastSortCamPos.current.distanceTo(camPos) > 0.3) {
+    const pool = sortPool.current;
+    if (pool && lastSortCamPos.current.distanceTo(camPos) > 0.3) {
       lastSortCamPos.current.copy(camPos);
       const mvMatrix = new THREE.Matrix4().multiplyMatrices(
         camera.matrixWorldInverse,
         mesh.matrixWorld,
       );
-      const sortOrder = computeDepthOrder(posData, instanceCount, mvMatrix);
-      reorderBuffer(posData, sortOrder, 3);
-      reorderBuffer(scaleData, sortOrder, 3);
-      reorderBuffer(colorData, sortOrder, 4);
-      reorderBuffer(intensityData, sortOrder, 1);
+      const syncOrder = pool.requestSort(posData, instanceCount, mvMatrix);
+      if (syncOrder) pendingSortOrder.current = syncOrder;
+    }
+
+    // Apply the most recent sort order — may be from a worker response that
+    // landed between frames, or from the sync fallback above.
+    const order = pendingSortOrder.current;
+    if (order && order.length > 0 && order.length <= instanceCount) {
+      pendingSortOrder.current = null;
+      reorderBuffer(posData, order, 3);
+      reorderBuffer(scaleData, order, 3);
+      reorderBuffer(colorData, order, 4);
+      reorderBuffer(intensityData, order, 1);
     }
 
     posAttr.needsUpdate = true;

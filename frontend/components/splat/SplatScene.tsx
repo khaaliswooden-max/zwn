@@ -41,6 +41,8 @@ export default function SplatScene({
 
   useEffect(() => {
     let cancelled = false;
+    let visibilityHandler: (() => void) | null = null;
+    let idleHandle: number | null = null;
 
     async function load() {
       try {
@@ -76,10 +78,47 @@ export default function SplatScene({
       }
     }
 
-    load();
+    // Defer the multi-MB .ksplat fetch until after first paint and only when
+    // the tab is actually visible — keeps LCP and TTI off the critical path.
+    const scheduleLoad = () => {
+      if (cancelled) return;
+      const w = window as Window & {
+        requestIdleCallback?: (cb: () => void, opts?: { timeout?: number }) => number;
+      };
+      if (w.requestIdleCallback) {
+        idleHandle = w.requestIdleCallback(() => {
+          if (!cancelled) void load();
+        }, { timeout: 2000 });
+      } else {
+        idleHandle = window.setTimeout(() => {
+          if (!cancelled) void load();
+        }, 500);
+      }
+    };
+
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+      visibilityHandler = () => {
+        if (document.visibilityState === 'visible' && visibilityHandler) {
+          document.removeEventListener('visibilitychange', visibilityHandler);
+          visibilityHandler = null;
+          scheduleLoad();
+        }
+      };
+      document.addEventListener('visibilitychange', visibilityHandler);
+    } else {
+      scheduleLoad();
+    }
 
     return () => {
       cancelled = true;
+      if (visibilityHandler) {
+        document.removeEventListener('visibilitychange', visibilityHandler);
+      }
+      if (idleHandle !== null) {
+        const w = window as Window & { cancelIdleCallback?: (h: number) => void };
+        if (w.cancelIdleCallback) w.cancelIdleCallback(idleHandle);
+        else window.clearTimeout(idleHandle);
+      }
       const dropIn = dropInRef.current;
       if (dropIn) {
         scene.remove(dropIn);

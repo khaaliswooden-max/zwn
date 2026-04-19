@@ -5,6 +5,19 @@ const nextConfig = {
   // The empty turbopack config signals that we intentionally use Turbopack.
   turbopack: {},
 
+  // .ksplat files are content-addressed immutable assets (regenerated = new filename),
+  // so they can be cached aggressively at the CDN + browser layer.
+  async headers() {
+    return [
+      {
+        source: '/splats/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+    ];
+  },
+
   // Webpack fallback config — only used when explicitly running `next build --webpack`
   // or `next dev --webpack`. Keeps @mkkellogg/gaussian-splats-3d working under webpack.
   webpack: (config, { isServer }) => {
