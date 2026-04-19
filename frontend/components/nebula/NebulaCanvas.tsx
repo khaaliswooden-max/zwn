@@ -24,6 +24,20 @@ import { hexToRgb } from '@/lib/nebula/gaussian-math';
 import { SUBSTRATE_COLORS } from '@/lib/constants';
 import { supportsVolumetric } from '@/lib/nebula/capabilities';
 import { useAutoplay } from '@/lib/nebula/use-autoplay';
+import { useZwmStream, ZwmStreamEvent } from '@/lib/zwm-stream';
+
+// Platform → nodeType used for cluster lookup. Matches ZWM graph schema.
+const PLATFORM_NODE_TYPE: Record<string, string> = {
+  civium: 'ComplianceState',
+  aureon: 'ProcurementState',
+  symbion: 'BiologicalState',
+  qal: 'HistoricalRecon',
+  relian: 'MigrationState',
+  podx: 'ComputeState',
+  zusdc: 'SubstrateEvent',
+  veyra: 'SubstrateEvent',
+  zuup_hq: 'SubstrateEvent',
+};
 
 // ── OrbitControls (inline to avoid @react-three/drei dependency weight) ──────
 
@@ -235,6 +249,42 @@ export default function NebulaCanvas({ height, splatUrl, focusTarget: externalFo
   }, []);
 
   useAutoplay(clusters, addAnimation);
+
+  // Live SSE → nebula pulse. Picks a source cluster by (source platform
+  // nodeType + entityId) and a target the same way. Misses silently skip;
+  // the autoplay demo keeps running so the canvas stays alive.
+  const onStreamEvent = useCallback(
+    (evt: ZwmStreamEvent) => {
+      if (evt.kind !== 'CAUSAL_PROPAGATION') return;
+      const entityId =
+        typeof evt.params?.entityId === 'string' ? evt.params.entityId : undefined;
+      if (!entityId) return;
+
+      const srcType = PLATFORM_NODE_TYPE[evt.source];
+      const tgtType = PLATFORM_NODE_TYPE[evt.target];
+      if (!srcType || !tgtType) return;
+
+      const source = clusters.find(
+        (c) => c.nodeType === srcType && c.entityId === entityId,
+      );
+      const target = clusters.find(
+        (c) => c.nodeType === tgtType && c.entityId === entityId,
+      );
+      if (!source || !target) return;
+
+      const sourceColor = hexToRgb(SUBSTRATE_COLORS[source.nodeType] ?? '#888780');
+      addAnimation(
+        createCausalAnimation(
+          `live-${evt.substrateEventId}-${evt.ruleId}`,
+          source.center,
+          target.center,
+          sourceColor,
+        ),
+      );
+    },
+    [clusters, addAnimation],
+  );
+  useZwmStream(onStreamEvent);
 
   return (
     <div className="relative w-full h-full bg-zwn-bg">

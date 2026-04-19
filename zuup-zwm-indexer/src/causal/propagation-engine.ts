@@ -1,3 +1,4 @@
+import { EventEmitter } from 'events';
 import axios from 'axios';
 import { CausalRule, CAUSAL_RULES } from '../../config/causal-rules';
 import { metrics } from '../lib/metrics';
@@ -5,6 +6,61 @@ import { metrics } from '../lib/metrics';
 const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_RETRIES = 3;
 const BACKOFF_BASE_MS = 1_000;   // 1s, 4s, 16s (quadratic backoff)
+
+// ─── Live event bus ─────────────────────────────────────────────────────────
+// Downstream consumers (SSE endpoint, internal tooling) subscribe to receive
+// causal events as they happen. Kept in-process: consumers must re-subscribe
+// after indexer restart; no durable delivery guarantees here.
+
+export type CausalBusEvent =
+  | {
+      kind: 'SUBSTRATE_EVENT';
+      substrateEventId: string;
+      eventType: string;
+      source: string;
+      payload: Record<string, unknown>;
+      timestamp: number;
+    }
+  | {
+      kind: 'CAUSAL_PROPAGATION';
+      substrateEventId: string;
+      ruleId: string;
+      source: string;
+      target: string;
+      effect: string;
+      params: Record<string, unknown>;
+      timestamp: number;
+    };
+
+const bus = new EventEmitter();
+bus.setMaxListeners(100); // room for SSE clients + internal subscribers
+
+/**
+ * Subscribe to causal bus events. Returns an unsubscribe function.
+ * Listeners are invoked synchronously after each emit — keep them cheap.
+ */
+export function subscribeToCausalEvents(
+  listener: (event: CausalBusEvent) => void,
+): () => void {
+  bus.on('event', listener);
+  return () => {
+    bus.off('event', listener);
+  };
+}
+
+/** 'AUREON_INGEST_URL' → 'aureon'. Returns lowercase platform name. */
+function targetPlatformFromEnvKey(envKey: string): string {
+  return envKey.replace(/_INGEST_URL$/, '').toLowerCase();
+}
+
+function publish(event: CausalBusEvent): void {
+  try {
+    bus.emit('event', event);
+  } catch (err) {
+    // A misbehaving listener should never break the causal engine.
+    console.error('[causal] event bus listener threw:', err);
+  }
+}
 
 // Dead-letter queue for failed propagations after all retries exhausted
 interface DeadLetterEntry {
@@ -107,6 +163,15 @@ export async function evaluateAndPropagate(
   payload: Record<string, unknown>,
   substrateEventId: string
 ): Promise<void> {
+  publish({
+    kind: 'SUBSTRATE_EVENT',
+    substrateEventId,
+    eventType,
+    source,
+    payload,
+    timestamp: Date.now(),
+  });
+
   const matchingRules = CAUSAL_RULES.filter(
     (rule) =>
       rule.trigger === eventType &&
@@ -124,13 +189,26 @@ export async function evaluateAndPropagate(
         return;
       }
 
+      const params = rule.effectParams(payload, substrateEventId);
       const body = {
         action: rule.effect,
-        params: rule.effectParams(payload, substrateEventId),
+        params,
         triggerEventId: substrateEventId,
       };
 
-      await fireRuleWithRetry(rule, targetUrl, body);
+      const ok = await fireRuleWithRetry(rule, targetUrl, body);
+      if (ok) {
+        publish({
+          kind: 'CAUSAL_PROPAGATION',
+          substrateEventId,
+          ruleId: rule.id,
+          source,
+          target: targetPlatformFromEnvKey(rule.targetEnvKey),
+          effect: rule.effect,
+          params,
+          timestamp: Date.now(),
+        });
+      }
     })
   );
 }
