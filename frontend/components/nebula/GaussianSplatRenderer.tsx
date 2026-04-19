@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useMemo, useEffect } from 'react';
+import { useRef, useMemo, useEffect, type RefObject } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { ClusterDescriptor, GaussianParams, CausalAnimation } from '@/lib/nebula/types';
@@ -173,12 +173,21 @@ interface Props {
   clusters: ClusterDescriptor[];
   causalAnimations?: CausalAnimation[];
   selectedClusterId?: string | null;
+  /** Map<nodeId, expiresAtMs> — drives the coral VAE-anomaly flash. */
+  anomalyFlashesRef?: RefObject<Map<string, number>>;
 }
+
+// Coral tint used for the anomaly flash — matches SUBSTRATE_COLORS['MigrationState'].
+const ANOMALY_COLOR_R = 216 / 255;
+const ANOMALY_COLOR_G = 90 / 255;
+const ANOMALY_COLOR_B = 48 / 255;
+const ANOMALY_FLASH_DURATION_MS = 2000;
 
 export default function GaussianSplatRenderer({
   clusters,
   causalAnimations,
   selectedClusterId,
+  anomalyFlashesRef,
 }: Props) {
   const meshRef = useRef<THREE.Mesh>(null);
   const { camera } = useThree();
@@ -337,6 +346,9 @@ export default function GaussianSplatRenderer({
 
     let instanceCount = 0;
 
+    const anomalyFlashes = anomalyFlashesRef?.current;
+    const nowMs = Date.now();
+
     for (const cluster of clusters) {
       const range = clusterRanges.find((r) => r.clusterId === cluster.nodeId);
       if (!range) continue;
@@ -344,14 +356,32 @@ export default function GaussianSplatRenderer({
       const isSelected = currentSelected === cluster.nodeId;
       const isDimmed = currentSelected != null && !isSelected;
 
+      // Linear-decay flash strength over ANOMALY_FLASH_DURATION_MS. Expired
+      // entries are cleared here to keep the map small.
+      let anomalyStrength = 0;
+      if (anomalyFlashes) {
+        const expires = anomalyFlashes.get(cluster.nodeId);
+        if (expires !== undefined) {
+          if (expires <= nowMs) {
+            anomalyFlashes.delete(cluster.nodeId);
+          } else {
+            anomalyStrength = (expires - nowMs) / ANOMALY_FLASH_DURATION_MS;
+          }
+        }
+      }
+
       for (let i = range.start; i < range.start + range.count; i++) {
         const gi = i - range.start;
         const g = cluster.gaussians[gi];
         if (!g) continue;
 
+        const effectivePulse =
+          anomalyStrength > 0
+            ? cluster.pulseRate + anomalyStrength * 4
+            : cluster.pulseRate;
         const breathe =
-          cluster.pulseRate > 0
-            ? 1 + 0.05 * Math.sin(time * cluster.pulseRate * Math.PI * 2 + gi * 0.7)
+          effectivePulse > 0
+            ? 1 + 0.05 * Math.sin(time * effectivePulse * Math.PI * 2 + gi * 0.7)
             : 1;
 
         const nBase = (noiseCursor.current + i * 3) & NOISE_LUT_MASK;
@@ -366,16 +396,24 @@ export default function GaussianSplatRenderer({
         posData[i * 3 + 1] = basePosData[i * 3 + 1] + driftData[i * 3 + 1];
         posData[i * 3 + 2] = basePosData[i * 3 + 2] + driftData[i * 3 + 2];
 
-        scaleData[i * 3] = g.scale[0] * breathe;
-        scaleData[i * 3 + 1] = g.scale[1] * breathe;
-        scaleData[i * 3 + 2] = g.scale[2] * breathe;
+        const scaleBoost = 1 + anomalyStrength * 0.3;
+        scaleData[i * 3] = g.scale[0] * breathe * scaleBoost;
+        scaleData[i * 3 + 1] = g.scale[1] * breathe * scaleBoost;
+        scaleData[i * 3 + 2] = g.scale[2] * breathe * scaleBoost;
 
-        colorData[i * 4] = g.color[0];
-        colorData[i * 4 + 1] = g.color[1];
-        colorData[i * 4 + 2] = g.color[2];
+        if (anomalyStrength > 0) {
+          const s = anomalyStrength;
+          colorData[i * 4]     = g.color[0] * (1 - s) + ANOMALY_COLOR_R * s;
+          colorData[i * 4 + 1] = g.color[1] * (1 - s) + ANOMALY_COLOR_G * s;
+          colorData[i * 4 + 2] = g.color[2] * (1 - s) + ANOMALY_COLOR_B * s;
+        } else {
+          colorData[i * 4] = g.color[0];
+          colorData[i * 4 + 1] = g.color[1];
+          colorData[i * 4 + 2] = g.color[2];
+        }
         colorData[i * 4 + 3] = isDimmed ? g.opacity * 0.2 : isSelected ? Math.min(g.opacity * 1.3, 1) : g.opacity;
 
-        intensityData[i] = g.intensity * breathe;
+        intensityData[i] = g.intensity * breathe * (1 + anomalyStrength * 0.8);
 
         instanceCount = Math.max(instanceCount, i + 1);
       }

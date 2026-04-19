@@ -219,4 +219,18 @@ export const CONSOLE_ENDPOINTS: EndpointDef[] = [
     params: [],
     needsBody: true,
   },
+  {
+    label: 'POST /enterprise/nn/karpathy/detect',
+    method: 'POST',
+    path: '/enterprise/nn/karpathy/detect',
+    params: [],
+    needsBody: true,
+  },
+  {
+    label: 'POST /enterprise/nn/anomaly/batch',
+    method: 'POST',
+    path: '/enterprise/nn/anomaly/batch',
+    params: [],
+    needsBody: true,
+  },
 ];

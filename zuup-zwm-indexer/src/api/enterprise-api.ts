@@ -1,4 +1,5 @@
 import http, { IncomingMessage, ServerResponse } from 'http';
+import axios, { AxiosError } from 'axios';
 import { Driver } from 'neo4j-driver';
 import { generateKey, validateKey, revokeKey, listKeys, getKeyRecord, AccessTrack } from './api-key-store';
 import { queryCache } from './query-cache';
@@ -8,6 +9,11 @@ import {
   subscribeToCausalEvents,
 } from '../causal/propagation-engine';
 import { metrics } from '../lib/metrics';
+
+// nn-service (VAE anomaly + Karpathy sequence detection). Reached via
+// server-to-server only — browsers go through these authenticated proxies.
+const NN_SERVICE_URL = process.env['NN_SERVICE_URL'] || 'http://localhost:5100';
+const NN_TIMEOUT_MS = Number(process.env['NN_TIMEOUT_MS'] || '5000');
 
 // ─── CORS ───────────────────────────────────────────────────────────────────
 
@@ -671,6 +677,45 @@ curl -X POST http://localhost:4000/graphql \\
 </body>
 </html>`;
 
+// ─── nn-service proxy ───────────────────────────────────────────────────────
+// Thin pass-through to the Python neural-net service. Keeps the API key
+// boundary intact (the browser never talks to :5100 directly) and lets us
+// enforce rate limits per track via the same bucket as the rest of the API.
+
+async function proxyToNnService(
+  req: IncomingMessage,
+  res: ServerResponse,
+  upstreamPath: string,
+): Promise<void> {
+  try {
+    const body = await readBody(req);
+    let payload: unknown;
+    try {
+      payload = body ? JSON.parse(body) : {};
+    } catch {
+      sendJson(res, 400, { error: 'Invalid JSON body.' }, req);
+      return;
+    }
+
+    const response = await axios.post(`${NN_SERVICE_URL}${upstreamPath}`, payload, {
+      timeout: NN_TIMEOUT_MS,
+      headers: { 'Content-Type': 'application/json' },
+      // Forward upstream errors rather than retrying — the browser sees them.
+      validateStatus: () => true,
+    });
+
+    sendJson(res, response.status, response.data, req);
+  } catch (err) {
+    const axErr = err as AxiosError;
+    const status = axErr.code === 'ECONNABORTED' ? 504 : 502;
+    const message =
+      axErr.code === 'ECONNREFUSED'
+        ? 'nn-service unreachable.'
+        : axErr.message || 'nn-service proxy error.';
+    sendJson(res, status, { error: message, upstream: upstreamPath }, req);
+  }
+}
+
 // ─── SSE stream ──────────────────────────────────────────────────────────────
 // Live causal-event push for browser clients. EventSource can't send custom
 // headers, so we accept the API key as either `X-ZWM-API-Key` or `?apiKey=…`.
@@ -854,6 +899,18 @@ export async function startEnterpriseApi(driver: Driver): Promise<void> {
       const eventId = pathParam(url, '/enterprise/causal-chain/');
       if (method === 'GET' && eventId !== null) {
         await handleCausalChain(eventId, driver, res);
+        return;
+      }
+
+      // POST /enterprise/nn/anomaly/batch — VAE batch anomaly detection proxy
+      if (method === 'POST' && url === '/enterprise/nn/anomaly/batch') {
+        await proxyToNnService(req, res, '/detect/anomaly/batch');
+        return;
+      }
+
+      // POST /enterprise/nn/karpathy/detect — Karpathy sequence anomaly proxy
+      if (method === 'POST' && url === '/enterprise/nn/karpathy/detect') {
+        await proxyToNnService(req, res, '/karpathy/detect');
         return;
       }
 

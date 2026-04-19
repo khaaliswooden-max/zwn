@@ -30,6 +30,16 @@ export type CausalBusEvent =
       effect: string;
       params: Record<string, unknown>;
       timestamp: number;
+    }
+  | {
+      kind: 'ANOMALY_SCORE';
+      substrateEventId: string;
+      entityId: string;
+      substrate: string;    // e.g. 'biological'
+      anomalyScore: number; // 0.0–1.0 normalized
+      isAnomaly: boolean;
+      modelVersion: number;
+      timestamp: number;
     };
 
 const bus = new EventEmitter();
@@ -60,6 +70,25 @@ function publish(event: CausalBusEvent): void {
     // A misbehaving listener should never break the causal engine.
     console.error('[causal] event bus listener threw:', err);
   }
+}
+
+/**
+ * Publish an anomaly score result to the live bus. Called from NN-enabled
+ * listeners (e.g. symbion) after a successful writeAnomalyScore.
+ */
+export function publishAnomalyScore(args: {
+  substrateEventId: string;
+  entityId: string;
+  substrate: string;
+  anomalyScore: number;
+  isAnomaly: boolean;
+  modelVersion: number;
+}): void {
+  publish({
+    kind: 'ANOMALY_SCORE',
+    ...args,
+    timestamp: Date.now(),
+  });
 }
 
 // Dead-letter queue for failed propagations after all retries exhausted

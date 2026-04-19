@@ -38,6 +38,16 @@ export type ZwmStreamEvent =
       effect: string;
       params: Record<string, unknown>;
       timestamp: number;
+    }
+  | {
+      kind: 'ANOMALY_SCORE';
+      substrateEventId: string;
+      entityId: string;
+      substrate: string;
+      anomalyScore: number;
+      isAnomaly: boolean;
+      modelVersion: number;
+      timestamp: number;
     };
 
 type Listener = (event: ZwmStreamEvent) => void;
@@ -134,6 +144,7 @@ export function ZwmStreamProvider({ children }: { children: React.ReactNode }) {
 
       source.addEventListener('SUBSTRATE_EVENT', handle);
       source.addEventListener('CAUSAL_PROPAGATION', handle);
+      source.addEventListener('ANOMALY_SCORE', handle);
     };
 
     connect();

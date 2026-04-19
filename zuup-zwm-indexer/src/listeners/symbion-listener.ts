@@ -1,7 +1,7 @@
 import { Connection, PublicKey, Logs, Context } from '@solana/web3.js';
 import { parseSymbionEvents } from '../parsers/symbion-parser';
 import { writeBiologicalState } from '../writers/biological-writer';
-import { evaluateAndPropagate } from '../causal/propagation-engine';
+import { evaluateAndPropagate, publishAnomalyScore } from '../causal/propagation-engine';
 import { detectBiologicalAnomaly, writeAnomalyScore } from '../nn/anomaly-client';
 import { Driver } from 'neo4j-driver';
 import { metrics } from '../lib/metrics';
@@ -60,6 +60,17 @@ export function startSymbionListener(connection: Connection, driver: Driver): vo
               }).catch((writeErr) => {
                 const wMsg = writeErr instanceof Error ? writeErr.message : String(writeErr);
                 console.error(`[${PLATFORM}-listener] AnomalyScore write error: ${wMsg}`);
+              });
+
+              // Push to SSE bus so browsers can flash the affected cluster
+              // without waiting for the subsequent causal propagation.
+              publishAnomalyScore({
+                substrateEventId,
+                entityId: event.subjectId,
+                substrate: 'biological',
+                anomalyScore: nnResult.anomaly_score,
+                isAnomaly: nnResult.is_anomaly,
+                modelVersion: nnResult.model_version,
               });
             }
 
