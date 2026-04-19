@@ -181,7 +181,7 @@ interface Props {
 const ANOMALY_COLOR_R = 216 / 255;
 const ANOMALY_COLOR_G = 90 / 255;
 const ANOMALY_COLOR_B = 48 / 255;
-const ANOMALY_FLASH_DURATION_MS = 2000;
+export const ANOMALY_FLASH_DURATION_MS = 2000;
 
 export default function GaussianSplatRenderer({
   clusters,

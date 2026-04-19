@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import GaussianSplatRenderer from './GaussianSplatRenderer';
+import GaussianSplatRenderer, { ANOMALY_FLASH_DURATION_MS } from './GaussianSplatRenderer';
 import ClusterHitMeshes from './ClusterHitMeshes';
 import EdgeLines from './EdgeLines';
 import NebulaHUD from './NebulaHUD';
@@ -300,9 +300,13 @@ export default function NebulaCanvas({ height, splatUrl, focusTarget: externalFo
         );
         if (!cluster) return;
 
-        // 2 s flash — long enough to register visually, short enough to clear
-        // before the next propagation round on a steady stream.
-        anomalyFlashesRef.current.set(cluster.nodeId, Date.now() + 2000);
+        // Flash long enough to register, short enough to clear before the
+        // next propagation round on a steady stream. Duration is owned by
+        // the renderer (it's also the decay divisor).
+        anomalyFlashesRef.current.set(
+          cluster.nodeId,
+          Date.now() + ANOMALY_FLASH_DURATION_MS,
+        );
       }
     },
     [clusters, addAnimation],
