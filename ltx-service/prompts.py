@@ -16,6 +16,9 @@ SCENE_PROMPTS: dict[str, dict[str, str]] = {
         "negative_prompt": "text, watermark, logo, person, face, bright white background, daytime",
         "duration": 10,
         "resolution": "768x432",
+        # Empirical fal.ai LTX-2 wall-clock for 10s @ 768x432 is ~75s. Shorter
+        # scenes scale roughly linearly with frame count.
+        "estimated_seconds": 75,
     },
     "compliance-domain": {
         "prompt": (
@@ -26,6 +29,7 @@ SCENE_PROMPTS: dict[str, dict[str, str]] = {
         "negative_prompt": "text, watermark, person, face, bright background",
         "duration": 8,
         "resolution": "768x432",
+        "estimated_seconds": 60,
     },
     "causal-flow": {
         "prompt": (
@@ -36,6 +40,7 @@ SCENE_PROMPTS: dict[str, dict[str, str]] = {
         "negative_prompt": "text, watermark, person, face, white background",
         "duration": 8,
         "resolution": "768x432",
+        "estimated_seconds": 60,
     },
     "procurement-lattice": {
         "prompt": (
@@ -46,6 +51,7 @@ SCENE_PROMPTS: dict[str, dict[str, str]] = {
         "negative_prompt": "text, watermark, person, face, bright background",
         "duration": 8,
         "resolution": "768x432",
+        "estimated_seconds": 60,
     },
     "biological-field": {
         "prompt": (
@@ -56,6 +62,7 @@ SCENE_PROMPTS: dict[str, dict[str, str]] = {
         "negative_prompt": "text, watermark, person, face, bright background, medical imagery",
         "duration": 8,
         "resolution": "768x432",
+        "estimated_seconds": 60,
     },
 }
 

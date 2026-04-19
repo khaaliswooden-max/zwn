@@ -40,6 +40,10 @@ PROGRAM_MD = HERE / 'program.md'
 RESULTS_DIR = HERE / 'results'
 LOG_FILE = RESULTS_DIR / 'experiment_log.json'
 
+# Mirror the log into the frontend's public/research/ so the /research page
+# can load it as a static asset. Silently skipped if the sibling repo is absent.
+FRONTEND_LOG_FILE = HERE / '..' / 'frontend' / 'public' / 'research' / 'experiment_log.json'
+
 MODEL = 'claude-sonnet-4-6'
 EXPERIMENT_TIMEOUT = 120   # seconds to wait for train.py to complete
 
@@ -347,13 +351,21 @@ def main():
         })
 
         # Persist log after each iteration
-        LOG_FILE.write_text(json.dumps({
+        log_payload = json.dumps({
             'baseline_metric': baseline_metric,
             'baseline_f1': -baseline_metric,
             'best_metric': best_metric,
             'best_f1': -best_metric,
             'experiments': history,
-        }, indent=2), encoding='utf-8')
+        }, indent=2)
+        LOG_FILE.write_text(log_payload, encoding='utf-8')
+        try:
+            FRONTEND_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            FRONTEND_LOG_FILE.write_text(log_payload, encoding='utf-8')
+        except OSError:
+            # Frontend repo not checked out alongside — the /research page
+            # will fall back to whatever snapshot was last committed.
+            pass
 
     # ── summary ───────────────────────────────────────────────────────────────
     print_separator('═')

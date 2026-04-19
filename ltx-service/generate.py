@@ -5,6 +5,7 @@ fal.ai endpoint: fal-ai/ltx-2/text-to-video
 """
 
 import os
+import time
 import uuid
 import asyncio
 import logging
@@ -36,7 +37,14 @@ async def submit_generation(scene: str) -> str:
 
     scene_config = SCENE_PROMPTS[scene]
     job_id = f"{scene}-{uuid.uuid4().hex[:8]}"
-    _jobs[job_id] = {"status": "queued", "scene": scene, "video_path": None, "error": None}
+    _jobs[job_id] = {
+        "status": "queued",
+        "scene": scene,
+        "video_path": None,
+        "error": None,
+        "started_at": None,
+        "estimated_seconds": scene_config.get("estimated_seconds", 60),
+    }
 
     # Launch background task
     asyncio.create_task(_run_generation(job_id, scene_config, scene))
@@ -46,6 +54,7 @@ async def submit_generation(scene: str) -> str:
 async def _run_generation(job_id: str, config: dict, scene: str) -> None:
     """Background task: calls fal.ai, downloads video, updates job state."""
     _jobs[job_id]["status"] = "running"
+    _jobs[job_id]["started_at"] = time.time()
     try:
         logger.info(f"[{job_id}] Submitting to fal.ai: {FAL_MODEL}")
 
@@ -92,5 +101,29 @@ async def _download_file(url: str, dest: Path) -> None:
 
 
 def get_job_status(job_id: str) -> dict | None:
-    """Return job status dict, or None if job_id unknown."""
-    return _jobs.get(job_id)
+    """Return job status dict (with live eta_seconds), or None if unknown."""
+    job = _jobs.get(job_id)
+    if job is None:
+        return None
+    estimated = job.get("estimated_seconds") or 0
+    started = job.get("started_at")
+    if job["status"] == "running" and started is not None:
+        elapsed = time.time() - started
+        eta = max(0.0, float(estimated) - elapsed)
+    elif job["status"] in ("done", "error"):
+        eta = 0.0
+    else:
+        eta = float(estimated)
+    # Return a shallow copy so consumers don't mutate internal state.
+    return {**job, "eta_seconds": round(eta, 1)}
+
+
+def get_preview_path(scene: str) -> Path | None:
+    """Return first-frame preview PNG path for a scene, or None if missing.
+
+    Previews are populated by splat-pipeline (ffmpeg frame extraction) or by
+    an out-of-band tool. The LTX service itself does not generate them — it
+    just serves whatever is in outputs/previews/.
+    """
+    preview = OUTPUTS_DIR / "previews" / f"{scene}.png"
+    return preview if preview.is_file() else None

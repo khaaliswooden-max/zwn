@@ -29,6 +29,18 @@ const CLAUDE_MD_PATH = join(__dirname, '..', 'CLAUDE.md');
 const TODAY = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 const MODEL = process.env.ZWM_MODEL || 'claude-sonnet-4-6';
 
+// --json-out <path> — also emit the parsed brief as JSON. Used to feed the
+// frontend /brief page without requiring anyone to parse DOCX.
+function parseJsonOutFlag() {
+  const idx = process.argv.indexOf('--json-out');
+  if (idx >= 0 && idx + 1 < process.argv.length) {
+    return process.argv[idx + 1];
+  }
+  return null;
+}
+
+const JSON_OUT_PATH = parseJsonOutFlag();
+
 // ZWM brand colors
 const TEAL = '1D9E75';
 const PURPLE = '7F77DD';
@@ -580,6 +592,27 @@ async function main() {
   console.log(`[zwm-daily] DOCX written to: ${outputPath}`);
   console.log(`[zwm-daily] Brief: "${data.ten_x_improvement?.title}"`);
   console.log(`[zwm-daily] Platforms affected: ${(data.ten_x_improvement?.affected_platforms || []).join(', ')}`);
+
+  // Optional JSON output for downstream consumers (e.g. the frontend /brief page).
+  if (JSON_OUT_PATH) {
+    const jsonPayload = {
+      date: TODAY,
+      model: MODEL,
+      generated_at: new Date().toISOString(),
+      ...data,
+    };
+    const resolvedOut = JSON_OUT_PATH.startsWith('/')
+      ? JSON_OUT_PATH
+      : join(process.cwd(), JSON_OUT_PATH);
+    try {
+      mkdirSync(dirname(resolvedOut), { recursive: true });
+      writeFileSync(resolvedOut, JSON.stringify(jsonPayload, null, 2));
+      console.log(`[zwm-daily] JSON written to: ${resolvedOut}`);
+    } catch (err) {
+      console.warn(`[zwm-daily] Failed to write JSON to ${resolvedOut}: ${err.message}`);
+    }
+  }
+
   console.log(`[zwm-daily] Done.`);
 }
 
