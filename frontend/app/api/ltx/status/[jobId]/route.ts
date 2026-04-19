@@ -9,7 +9,7 @@ export async function GET(
   const base = process.env.LTX_SERVICE_URL;
   if (!base) {
     return NextResponse.json(
-      { error: 'LTX_SERVICE_URL not configured.' },
+      { detail: 'Generation service is not configured. Contact the site operator.' },
       { status: 503 },
     );
   }
@@ -21,7 +21,7 @@ export async function GET(
     resp = await fetch(`${base}/status/${encodeURIComponent(jobId)}`);
   } catch {
     return NextResponse.json(
-      { error: 'ltx-service unreachable.' },
+      { detail: 'Generation service is unreachable. Try again in a minute.' },
       { status: 502 },
     );
   }
