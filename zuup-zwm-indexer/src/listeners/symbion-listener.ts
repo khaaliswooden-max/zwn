@@ -20,9 +20,8 @@ export function startSymbionListener(connection: Connection, driver: Driver): vo
       for (const event of events) {
         const writeStart = Date.now();
         try {
-          const substrateEventId = await writeBiologicalState(
-            driver, event, ctx.slot, logs.signature
-          );
+          const { stateId: biologicalStateId, eventId: substrateEventId } =
+            await writeBiologicalState(driver, event, ctx.slot, logs.signature);
 
           metrics.eventsProcessed.inc({ platform: PLATFORM });
           metrics.writeLatencyMs.observe({ platform: PLATFORM }, Date.now() - writeStart);
@@ -57,6 +56,7 @@ export function startSymbionListener(connection: Connection, driver: Driver): vo
                 isAnomaly: nnResult.is_anomaly,
                 modelVersion: nnResult.model_version,
                 substrateEventId,
+                biologicalStateId,
               }).catch((writeErr) => {
                 const wMsg = writeErr instanceof Error ? writeErr.message : String(writeErr);
                 console.error(`[${PLATFORM}-listener] AnomalyScore write error: ${wMsg}`);

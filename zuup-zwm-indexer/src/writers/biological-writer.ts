@@ -7,7 +7,7 @@ export async function writeBiologicalState(
   payload: SymbionStatePayload,
   solanaSlot: number,
   txSignature: string
-): Promise<string> {
+): Promise<{ stateId: string; eventId: string }> {
   const session = driver.session();
   const stateId = uuidv4();
   const eventId = uuidv4();
@@ -68,7 +68,7 @@ export async function writeBiologicalState(
     });
 
     console.log(`[biological-writer] Wrote BiologicalState ${stateId} + SubstrateEvent ${eventId} for subject ${payload.subjectId}`);
-    return eventId;
+    return { stateId, eventId };
   } finally {
     await session.close();
   }
