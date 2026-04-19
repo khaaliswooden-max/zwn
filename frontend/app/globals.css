@@ -40,3 +40,11 @@ select option {
 .text-zwn-purple {
   color: #7F77DD;
 }
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

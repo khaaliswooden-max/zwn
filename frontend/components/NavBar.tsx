@@ -53,18 +53,18 @@ export default function NavBar() {
   const briefIsNew = briefDate !== null && briefDate !== seenDate;
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 h-11 border-b border-zwn-border bg-zwn-bg">
-      <Link href="/" className="text-zwn-teal text-sm font-semibold tracking-widest hover:opacity-80 transition-opacity">
+    <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between gap-3 pl-3 pr-3 sm:pl-6 sm:pr-6 h-11 border-b border-zwn-border bg-zwn-bg">
+      <Link href="/" className="shrink-0 text-zwn-teal text-sm font-semibold tracking-widest hover:opacity-80 transition-opacity">
         ZWM
       </Link>
-      <div className="flex gap-8 items-center">
+      <div className="flex gap-3 sm:gap-8 items-center overflow-x-auto no-scrollbar">
         {LINKS.map(({ href, label }) => {
           const active = pathname.startsWith(href);
           return (
             <Link
               key={href}
               href={href}
-              className={`text-xs tracking-widest transition-colors ${
+              className={`shrink-0 text-xs tracking-widest transition-colors ${
                 active
                   ? 'text-zwn-teal'
                   : 'text-zwn-muted hover:text-zwn-text'
@@ -77,7 +77,7 @@ export default function NavBar() {
         <Link
           href="/brief"
           aria-label={briefIsNew ? 'New daily brief available' : 'Daily brief'}
-          className={`relative text-xs tracking-widest transition-colors ${
+          className={`relative shrink-0 text-xs tracking-widest transition-colors ${
             pathname.startsWith('/brief')
               ? 'text-zwn-teal'
               : 'text-zwn-muted hover:text-zwn-text'
