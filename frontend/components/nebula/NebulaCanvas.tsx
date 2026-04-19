@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import GaussianSplatRenderer from './GaussianSplatRenderer';
+import GaussianSplatRenderer, { ANOMALY_FLASH_DURATION_MS } from './GaussianSplatRenderer';
 import ClusterHitMeshes from './ClusterHitMeshes';
 import EdgeLines from './EdgeLines';
 import NebulaHUD from './NebulaHUD';
@@ -201,6 +201,11 @@ export default function NebulaCanvas({ height, splatUrl, focusTarget: externalFo
   const causalAnimsRef = useRef(causalAnims);
   causalAnimsRef.current = causalAnims;
 
+  // Live anomaly flashes — map<clusterNodeId, expiresAtMs>. Mutated directly
+  // from stream callbacks and read by the renderer each frame, so keeping it
+  // in a ref avoids re-rendering the whole canvas on every flash.
+  const anomalyFlashesRef = useRef<Map<string, number>>(new Map());
+
   const clusters = useMemo(() => buildClusters(), []);
   const edges = useMemo(() => getEdges(), []);
 
@@ -250,37 +255,59 @@ export default function NebulaCanvas({ height, splatUrl, focusTarget: externalFo
 
   useAutoplay(clusters, addAnimation);
 
-  // Live SSE → nebula pulse. Picks a source cluster by (source platform
-  // nodeType + entityId) and a target the same way. Misses silently skip;
-  // the autoplay demo keeps running so the canvas stays alive.
+  // Live SSE → nebula reactions. Misses (entity/cluster not found) silently
+  // skip; autoplay keeps running so the canvas never goes dead.
   const onStreamEvent = useCallback(
     (evt: ZwmStreamEvent) => {
-      if (evt.kind !== 'CAUSAL_PROPAGATION') return;
-      const entityId =
-        typeof evt.params?.entityId === 'string' ? evt.params.entityId : undefined;
-      if (!entityId) return;
+      if (evt.kind === 'CAUSAL_PROPAGATION') {
+        const entityId =
+          typeof evt.params?.entityId === 'string' ? evt.params.entityId : undefined;
+        if (!entityId) return;
 
-      const srcType = PLATFORM_NODE_TYPE[evt.source];
-      const tgtType = PLATFORM_NODE_TYPE[evt.target];
-      if (!srcType || !tgtType) return;
+        const srcType = PLATFORM_NODE_TYPE[evt.source];
+        const tgtType = PLATFORM_NODE_TYPE[evt.target];
+        if (!srcType || !tgtType) return;
 
-      const source = clusters.find(
-        (c) => c.nodeType === srcType && c.entityId === entityId,
-      );
-      const target = clusters.find(
-        (c) => c.nodeType === tgtType && c.entityId === entityId,
-      );
-      if (!source || !target) return;
+        const source = clusters.find(
+          (c) => c.nodeType === srcType && c.entityId === entityId,
+        );
+        const target = clusters.find(
+          (c) => c.nodeType === tgtType && c.entityId === entityId,
+        );
+        if (!source || !target) return;
 
-      const sourceColor = hexToRgb(SUBSTRATE_COLORS[source.nodeType] ?? '#888780');
-      addAnimation(
-        createCausalAnimation(
-          `live-${evt.substrateEventId}-${evt.ruleId}`,
-          source.center,
-          target.center,
-          sourceColor,
-        ),
-      );
+        const sourceColor = hexToRgb(SUBSTRATE_COLORS[source.nodeType] ?? '#888780');
+        addAnimation(
+          createCausalAnimation(
+            `live-${evt.substrateEventId}-${evt.ruleId}`,
+            source.center,
+            target.center,
+            sourceColor,
+          ),
+        );
+        return;
+      }
+
+      if (evt.kind === 'ANOMALY_SCORE' && evt.isAnomaly) {
+        // Biological anomalies are the only substrate currently wired into
+        // nn-service, so map 'biological' → BiologicalState. If more substrate
+        // VAEs come online, extend this lookup.
+        const nodeType = evt.substrate === 'biological' ? 'BiologicalState' : null;
+        if (!nodeType) return;
+
+        const cluster = clusters.find(
+          (c) => c.nodeType === nodeType && c.entityId === evt.entityId,
+        );
+        if (!cluster) return;
+
+        // Flash long enough to register, short enough to clear before the
+        // next propagation round on a steady stream. Duration is owned by
+        // the renderer (it's also the decay divisor).
+        anomalyFlashesRef.current.set(
+          cluster.nodeId,
+          Date.now() + ANOMALY_FLASH_DURATION_MS,
+        );
+      }
     },
     [clusters, addAnimation],
   );
@@ -316,6 +343,7 @@ export default function NebulaCanvas({ height, splatUrl, focusTarget: externalFo
           clusters={clusters}
           causalAnimations={causalAnims}
           selectedClusterId={selected?.nodeId ?? null}
+          anomalyFlashesRef={anomalyFlashesRef}
         />
 
         <EdgeLines edges={edges} clusters={clusters} />
