@@ -107,8 +107,8 @@ export default function WorldPage() {
         body: JSON.stringify({ scene: selectedScene }),
       });
       if (!res.ok) {
-        const err = await res.json().catch(() => ({ detail: res.statusText }));
-        throw new Error(err.detail ?? 'Service error');
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail ?? err.error ?? res.statusText ?? 'Service error');
       }
       const data = await res.json();
       setGen((prev) => ({ ...prev, status: 'queued', jobId: data.job_id }));
