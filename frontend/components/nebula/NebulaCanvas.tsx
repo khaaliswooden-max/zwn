@@ -1,14 +1,19 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import GaussianSplatRenderer from './GaussianSplatRenderer';
 import ClusterHitMeshes from './ClusterHitMeshes';
 import EdgeLines from './EdgeLines';
 import NebulaHUD from './NebulaHUD';
-import PostFX from './PostFX';
 import SplatEnvironment from '@/components/splat/SplatEnvironment';
+
+// PostFX pulls in @react-three/postprocessing + postprocessing (~80KB gz). Split
+// into its own chunk so the main nebula bundle stays lean; WebGL1 devices skip
+// it entirely via the supportsVolumetric() gate below.
+const PostFX = dynamic(() => import('./PostFX'), { ssr: false, loading: () => null });
 import { buildClusters, getEdges } from '@/lib/nebula/data-mapper';
 import {
   createCausalAnimation,
@@ -22,33 +27,43 @@ import { useAutoplay } from '@/lib/nebula/use-autoplay';
 
 // ── OrbitControls (inline to avoid @react-three/drei dependency weight) ──────
 
+// Singleton promise — the JS module cache already dedupes, but caching the
+// promise avoids a per-mount allocation and microtask on route changes.
+let orbitControlsModule: Promise<typeof import('three/examples/jsm/controls/OrbitControls.js')> | null = null;
+function loadOrbitControls() {
+  if (!orbitControlsModule) {
+    orbitControlsModule = import('three/examples/jsm/controls/OrbitControls.js');
+  }
+  return orbitControlsModule;
+}
+
 function SimpleOrbitControls() {
   const { camera, gl } = useThree();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
 
   useEffect(() => {
-    let controls: InstanceType<typeof THREE.EventDispatcher> | null = null;
+    let cancelled = false;
 
-    import('three/examples/jsm/controls/OrbitControls.js').then(
-      ({ OrbitControls }) => {
-        const oc = new OrbitControls(camera, gl.domElement);
-        oc.enableDamping = true;
-        oc.dampingFactor = 0.08;
-        oc.minDistance = 2;
-        oc.maxDistance = 50;
-        oc.maxPolarAngle = Math.PI * 0.94;
-        oc.minPolarAngle = Math.PI * 0.06;
-        oc.autoRotate = true;
-        oc.autoRotateSpeed = 0.3;
-        controlsRef.current = oc;
-        controls = oc;
-      },
-    );
+    loadOrbitControls().then(({ OrbitControls }) => {
+      if (cancelled) return;
+      const oc = new OrbitControls(camera, gl.domElement);
+      oc.enableDamping = true;
+      oc.dampingFactor = 0.08;
+      oc.minDistance = 2;
+      oc.maxDistance = 50;
+      oc.maxPolarAngle = Math.PI * 0.94;
+      oc.minPolarAngle = Math.PI * 0.06;
+      oc.autoRotate = true;
+      oc.autoRotateSpeed = 0.3;
+      controlsRef.current = oc;
+    });
 
     return () => {
+      cancelled = true;
       if (controlsRef.current) {
         controlsRef.current.dispose();
+        controlsRef.current = null;
       }
     };
   }, [camera, gl]);

@@ -142,8 +142,19 @@ function findRiskForEntity(entityId: string): string {
   return entity?.risk?.riskLevel ?? 'LOW';
 }
 
+// Module-level cache — buildClusters reads from static MOCK_* data and is pure,
+// so the first call's result is reused across every NebulaCanvas mount.
+// Future live-update work can call invalidateClustersCache() to force a rebuild.
+let _clusterCache: ClusterDescriptor[] | null = null;
+
+export function invalidateClustersCache(): void {
+  _clusterCache = null;
+}
+
 /** Convert mock graph data into ClusterDescriptors for the Gaussian renderer. */
 export function buildClusters(): ClusterDescriptor[] {
+  if (_clusterCache) return _clusterCache;
+
   const nodes = MOCK_GRAPH_DATA.nodes as GraphNode[];
   const links = MOCK_GRAPH_DATA.links as GraphLink[];
 
@@ -159,7 +170,7 @@ export function buildClusters(): ClusterDescriptor[] {
     riskMap,
   );
 
-  return nodes.map((node) => {
+  const built = nodes.map((node) => {
     const metrics = findEntityMetrics(node.id, node.type);
     const entityId =
       node.type === 'WorldActor'
@@ -192,13 +203,20 @@ export function buildClusters(): ClusterDescriptor[] {
       metrics,
     };
   });
+
+  _clusterCache = built;
+  return built;
 }
+
+let _edgeCache: { source: string; target: string; type: string }[] | null = null;
 
 /** Get edge data for rendering connections between clusters. */
 export function getEdges(): { source: string; target: string; type: string }[] {
-  return (MOCK_GRAPH_DATA.links as GraphLink[]).map((l) => ({
+  if (_edgeCache) return _edgeCache;
+  _edgeCache = (MOCK_GRAPH_DATA.links as GraphLink[]).map((l) => ({
     source: l.source,
     target: l.target,
     type: l.type,
   }));
+  return _edgeCache;
 }
