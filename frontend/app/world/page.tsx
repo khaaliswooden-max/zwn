@@ -16,8 +16,7 @@ const WorldCanvas = dynamic(() => import('@/components/WorldCanvas'), {
   ),
 });
 
-const LTX_SERVICE_BASE =
-  process.env.NEXT_PUBLIC_LTX_SERVICE_URL ?? 'http://localhost:8100';
+const LTX_SERVICE_BASE = '/api/ltx';
 
 const DEMO_SPLAT_URL = '/splats/world-demo.ksplat';
 
@@ -194,7 +193,7 @@ export default function WorldPage() {
           </button>
           <p className="text-[8px] text-zwn-muted/40 leading-relaxed">
             Generates a 10-second LTX-Video 2.3 scene via fal.ai, then trains a 3D Gaussian Splat model.
-            Pipeline takes 10-20 min. Requires ltx-service running on port 8100.
+            Pipeline takes 10-20 min.
           </p>
         </div>
       )}

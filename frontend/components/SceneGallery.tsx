@@ -37,7 +37,7 @@ interface Props {
 }
 
 export default function SceneGallery({ selected, onSelect, ltxBase }: Props) {
-  const base = ltxBase ?? process.env.NEXT_PUBLIC_LTX_SERVICE_URL ?? 'http://localhost:8100';
+  const base = ltxBase ?? '/api/ltx';
   const [scenes, setScenes] = useState<Scene[]>(DEFAULT_SCENES);
   const [previewOk, setPreviewOk] = useState<Record<string, boolean>>({});
 

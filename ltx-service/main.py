@@ -25,7 +25,12 @@ app = FastAPI(title="LTX-Video ZWM Service", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://zwn.zuup.org"],
+    allow_origins=[
+        "http://localhost:3000",
+        "https://zwn.zuup.org",
+        "https://zworldmodel.xyz",
+        "https://www.zworldmodel.xyz",
+    ],
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
