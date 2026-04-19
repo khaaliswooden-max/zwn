@@ -2,7 +2,11 @@ import http, { IncomingMessage, ServerResponse } from 'http';
 import { Driver } from 'neo4j-driver';
 import { generateKey, validateKey, revokeKey, listKeys, getKeyRecord, AccessTrack } from './api-key-store';
 import { queryCache } from './query-cache';
-import { getDeadLetterQueue, clearDeadLetterQueue } from '../causal/propagation-engine';
+import {
+  getDeadLetterQueue,
+  clearDeadLetterQueue,
+  subscribeToCausalEvents,
+} from '../causal/propagation-engine';
 import { metrics } from '../lib/metrics';
 
 // ─── CORS ───────────────────────────────────────────────────────────────────
@@ -667,6 +671,64 @@ curl -X POST http://localhost:4000/graphql \\
 </body>
 </html>`;
 
+// ─── SSE stream ──────────────────────────────────────────────────────────────
+// Live causal-event push for browser clients. EventSource can't send custom
+// headers, so we accept the API key as either `X-ZWM-API-Key` or `?apiKey=…`.
+
+const SSE_HEARTBEAT_MS = 15_000;
+
+function handleEventStream(req: IncomingMessage, res: ServerResponse): void {
+  const url = req.url ?? '';
+  const headerKey = req.headers['x-zwm-api-key'];
+  const queryKey = queryParam(url, 'apiKey');
+  const apiKey = typeof headerKey === 'string' ? headerKey : queryKey;
+
+  if (!apiKey || !validateKey(apiKey)) {
+    sendJson(res, 401, { error: 'Invalid or missing API key.' }, req);
+    return;
+  }
+
+  const keyRecord = getKeyRecord(apiKey);
+  const rateLimit = TRACK_RATE_LIMITS[keyRecord?.track ?? 'API_ACCESS'] ?? 100;
+  if (!checkRateLimit(apiKey, rateLimit)) {
+    sendJson(res, 429, { error: 'Rate limit exceeded.' }, req);
+    return;
+  }
+
+  const origin = corsOrigin(req);
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no', // disable proxy buffering (nginx)
+    ...(origin ? { 'Access-Control-Allow-Origin': origin } : {}),
+  });
+
+  // Initial comment flushes headers and opens the stream on the client.
+  res.write(`: connected ${Date.now()}\n\n`);
+
+  const unsubscribe = subscribeToCausalEvents((event) => {
+    // Writable check prevents EPIPE after client disconnect.
+    if (!res.writable) return;
+    res.write(`event: ${event.kind}\n`);
+    res.write(`data: ${JSON.stringify(event)}\n\n`);
+  });
+
+  const heartbeat = setInterval(() => {
+    if (!res.writable) return;
+    res.write(`: heartbeat ${Date.now()}\n\n`);
+  }, SSE_HEARTBEAT_MS);
+
+  const cleanup = () => {
+    clearInterval(heartbeat);
+    unsubscribe();
+  };
+
+  req.on('close', cleanup);
+  req.on('error', cleanup);
+  res.on('close', cleanup);
+}
+
 // ─── Server ───────────────────────────────────────────────────────────────────
 
 export async function startEnterpriseApi(driver: Driver): Promise<void> {
@@ -745,6 +807,13 @@ export async function startEnterpriseApi(driver: Driver): Promise<void> {
         if (!requireAdminKey(req, res)) return;
         const ok = revokeKey(revokeTarget);
         sendJson(res, ok ? 200 : 404, { revoked: ok });
+        return;
+      }
+
+      // GET /enterprise/events/stream — SSE live feed of causal events.
+      // Handles its own auth (supports ?apiKey= for browser EventSource).
+      if (method === 'GET' && (url === '/enterprise/events/stream' || url.startsWith('/enterprise/events/stream?'))) {
+        handleEventStream(req, res);
         return;
       }
 

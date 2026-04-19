@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import NavBar from '@/components/NavBar';
 import StatusBar from '@/components/StatusBar';
+import { ZwmStreamProvider } from '@/lib/zwm-stream';
 
 export const metadata: Metadata = {
   title: 'ZWM — Zuup World Model',
@@ -19,12 +20,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <NavBar />
-        {/* pt-11 = nav height, pb-9 = status bar height */}
-        <main className="pt-11 pb-9 min-h-screen">
-          {children}
-        </main>
-        <StatusBar />
+        <ZwmStreamProvider>
+          <NavBar />
+          {/* pt-11 = nav height, pb-9 = status bar height */}
+          <main className="pt-11 pb-9 min-h-screen">
+            {children}
+          </main>
+          <StatusBar />
+        </ZwmStreamProvider>
       </body>
     </html>
   );
