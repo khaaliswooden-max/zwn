@@ -1,5 +1,29 @@
 'use client';
 
+import { useState } from 'react';
+import dynamic from 'next/dynamic';
+
+const SubstrateBackdrop = dynamic(() => import('@/components/splat/SubstrateBackdrop'), {
+  ssr: false,
+});
+
+// Platform → splat scene. Each scene is baked offline by
+// splat-pipeline/batch_substrates.sh into /splats/<scene>.ksplat. If the
+// file is missing, SplatEnvironment silently 404s and the grid is unchanged.
+const PLATFORM_SPLAT: Record<string, string> = {
+  CIVIUM: '/splats/compliance-domain.ksplat',
+  AUREON: '/splats/procurement-lattice.ksplat',
+  QAL: '/splats/causal-flow.ksplat',
+  SYMBION: '/splats/biological-field.ksplat',
+  RELIAN: '/splats/causal-flow.ksplat',
+  PODX: '/splats/world-nebula.ksplat',
+  VEYRA: '/splats/world-nebula.ksplat',
+  ZUSDC: '/splats/world-nebula.ksplat',
+  'ZUUP HQ': '/splats/world-nebula.ksplat',
+};
+
+const DEFAULT_SPLAT = '/splats/world-nebula.ksplat';
+
 const SUBSTRATES = [
   {
     superpower: 'Compliance Intelligence',
@@ -85,8 +109,13 @@ const SUBSTRATES = [
 ];
 
 export default function SubstratesPage() {
+  const [activeSplat, setActiveSplat] = useState<string>(DEFAULT_SPLAT);
+
   return (
-    <div className="max-w-4xl mx-auto px-6 py-12">
+    <div className="relative min-h-[60vh]">
+      <SubstrateBackdrop splatUrl={activeSplat} />
+
+      <div className="relative max-w-4xl mx-auto px-6 py-12">
       <div className="text-center mb-12">
         <div className="text-[9px] text-zwn-muted tracking-[0.3em] mb-2">
           NINE SUBSTRATES
@@ -104,7 +133,11 @@ export default function SubstratesPage() {
         {SUBSTRATES.map((s) => (
           <div
             key={s.platform}
-            className="border border-zwn-border rounded bg-zwn-surface p-4 space-y-3 hover:border-opacity-60 transition-colors"
+            onMouseEnter={() => setActiveSplat(PLATFORM_SPLAT[s.platform] ?? DEFAULT_SPLAT)}
+            onMouseLeave={() => setActiveSplat(DEFAULT_SPLAT)}
+            onFocus={() => setActiveSplat(PLATFORM_SPLAT[s.platform] ?? DEFAULT_SPLAT)}
+            tabIndex={0}
+            className="border border-zwn-border rounded bg-zwn-surface/90 backdrop-blur-sm p-4 space-y-3 hover:border-opacity-60 transition-colors"
           >
             <div className="flex items-center justify-between">
               <span
@@ -137,6 +170,7 @@ export default function SubstratesPage() {
             </div>
           </div>
         ))}
+      </div>
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import EntitySearchPanel from '@/components/EntitySearchPanel';
+import SceneGallery from '@/components/SceneGallery';
 import { buildClusters } from '@/lib/nebula/data-mapper';
 
 const WorldCanvas = dynamic(() => import('@/components/WorldCanvas'), {
@@ -27,6 +28,7 @@ interface GenerateState {
   jobId: string | null;
   error: string | null;
   activeSplatUrl: string;
+  etaSeconds: number | null;
 }
 
 export default function WorldPage() {
@@ -37,6 +39,7 @@ export default function WorldPage() {
     jobId: null,
     error: null,
     activeSplatUrl: DEMO_SPLAT_URL,
+    etaSeconds: null,
   });
   const [panelOpen, setPanelOpen] = useState(false);
   const [selectedScene, setSelectedScene] = useState('world-nebula');
@@ -81,12 +84,17 @@ export default function WorldPage() {
             ...prev,
             status: 'done',
             activeSplatUrl: `/splats/${splatName}.ksplat`,
+            etaSeconds: 0,
           }));
         } else if (data.status === 'error') {
           clearInterval(interval);
-          setGen((prev) => ({ ...prev, status: 'error', error: data.error ?? 'Generation failed' }));
+          setGen((prev) => ({ ...prev, status: 'error', error: data.error ?? 'Generation failed', etaSeconds: null }));
         } else {
-          setGen((prev) => ({ ...prev, status: data.status }));
+          setGen((prev) => ({
+            ...prev,
+            status: data.status,
+            etaSeconds: typeof data.eta_seconds === 'number' ? data.eta_seconds : prev.etaSeconds,
+          }));
         }
       } catch {
         // network error — keep polling
@@ -120,14 +128,10 @@ export default function WorldPage() {
   }, [selectedScene]);
 
   const isGenerating = gen.status === 'queued' || gen.status === 'running';
-
-  const SCENES = [
-    { id: 'world-nebula', label: 'World Nebula', desc: 'Deep space teal nebula · ZWM default environment' },
-    { id: 'compliance-domain', label: 'Compliance Domain', desc: 'Green crystalline lattice · Civium substrate' },
-    { id: 'causal-flow', label: 'Causal Flow', desc: 'Energy streams between nodes · cross-substrate' },
-    { id: 'procurement-lattice', label: 'Procurement Lattice', desc: 'Purple-amber network · Aureon substrate' },
-    { id: 'biological-field', label: 'Biological Field', desc: 'Amber waveforms · Symbion substrate' },
-  ];
+  const etaLabel =
+    isGenerating && typeof gen.etaSeconds === 'number' && gen.etaSeconds > 0
+      ? ` · ${Math.ceil(gen.etaSeconds)}s`
+      : '';
 
   return (
     <div className="relative w-full" style={{ height: canvasHeight }}>
@@ -159,6 +163,7 @@ export default function WorldPage() {
           <div className="flex items-center gap-2 px-3 py-1.5 rounded bg-zwn-surface/80 border border-zwn-border text-[10px] text-zwn-muted tracking-widest">
             <span className="w-1.5 h-1.5 rounded-full bg-zwn-teal animate-pulse" />
             {gen.status === 'queued' ? 'generating video...' : 'training 3DGS...'}
+            {etaLabel}
           </div>
         ) : (
           <button
@@ -172,26 +177,15 @@ export default function WorldPage() {
 
       {/* Generate panel */}
       {panelOpen && !isGenerating && (
-        <div className="absolute top-12 right-4 z-20 w-72 bg-zwn-surface/95 border border-zwn-border rounded-lg p-4 space-y-4 backdrop-blur-sm">
+        <div className="absolute top-12 right-4 z-20 w-80 bg-zwn-surface/95 border border-zwn-border rounded-lg p-4 space-y-4 backdrop-blur-sm max-h-[calc(100vh-6rem)] overflow-y-auto">
           <div className="text-[9px] text-zwn-muted/60 tracking-widest uppercase">
             LTX-Video 2.3 · fal.ai
           </div>
-          <div className="space-y-1.5">
-            {SCENES.map((s) => (
-              <button
-                key={s.id}
-                onClick={() => setSelectedScene(s.id)}
-                className={`w-full text-left px-3 py-2 rounded border text-[11px] transition-colors ${
-                  selectedScene === s.id
-                    ? 'border-zwn-teal/40 bg-zwn-teal/5 text-zwn-teal'
-                    : 'border-zwn-border/50 text-zwn-muted hover:border-zwn-border hover:text-zwn-text'
-                }`}
-              >
-                <div className="font-medium">{s.label}</div>
-                <div className="text-[9px] mt-0.5 opacity-60">{s.desc}</div>
-              </button>
-            ))}
-          </div>
+          <SceneGallery
+            selected={selectedScene}
+            onSelect={setSelectedScene}
+            ltxBase={LTX_SERVICE_BASE}
+          />
           <button
             onClick={handleGenerate}
             className="w-full px-3 py-2 rounded bg-zwn-teal/10 border border-zwn-teal/30 text-zwn-teal text-[11px] tracking-widest hover:bg-zwn-teal/15 transition-colors"
